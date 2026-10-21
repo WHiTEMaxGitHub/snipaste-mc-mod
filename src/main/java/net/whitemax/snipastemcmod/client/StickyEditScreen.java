@@ -6,13 +6,21 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import org.lwjgl.glfw.GLFW;
+import org.lwjgl.glfw.GLFWImage;
+import org.lwjgl.system.MemoryUtil;
+import org.lwjgl.system.Platform;
+import org.lwjgl.system.windows.User32;
+
+import java.nio.ByteBuffer;
 
 public class StickyEditScreen extends Screen
 {
     private static final int MIN_SIZE = 24;
+    private static final int HANDLE_MARGIN = 6;
     private static final int BUTTON_WIDTH = 76;
     private static final int BUTTON_HEIGHT = 20;
     private static final int BUTTON_GAP = 4;
+    private static final int GROUP_GAP = 16;
 
     private int selected = -1;
     private Edge drag = Edge.NONE;
@@ -26,14 +34,18 @@ public class StickyEditScreen extends Screen
     private int barY;
     private int barWidth;
     private int barHeight;
-    private Button toggleButton;
     private Button deleteButton;
-    private Button copyButton;
+    private Button pickButton;
     private Button settingsButton;
 
     private static long resizeHorizontal;
     private static long resizeVertical;
+    private static long resizeNwse;
+    private static long resizeNesw;
     private static long handCursor;
+    private static boolean diagonalCursorsReady;
+    private static ByteBuffer nwseCursorBlock;
+    private static ByteBuffer neswCursorBlock;
 
     public StickyEditScreen()
     {
@@ -56,20 +68,15 @@ public class StickyEditScreen extends Screen
         placeBar();
         int x = this.barX + 4;
         int y = this.barY + 4;
+        this.pickButton = addRenderableWidget(Button.builder(Component.translatable("screen.snipaste_mc_mod.pick_short"), button ->
+                this.minecraft.setScreen(new ImagePickScreen(this)))
+                .bounds(x, y, BUTTON_WIDTH, BUTTON_HEIGHT)
+                .build());
+        x += BUTTON_WIDTH + BUTTON_GAP;
         this.deleteButton = addRenderableWidget(Button.builder(Component.translatable("screen.snipaste_mc_mod.delete_short"), button -> deleteSelected())
                 .bounds(x, y, BUTTON_WIDTH, BUTTON_HEIGHT)
                 .build());
-        x += BUTTON_WIDTH + BUTTON_GAP;
-        this.copyButton = addRenderableWidget(Button.builder(Component.translatable("screen.snipaste_mc_mod.copy_short"), button -> copySelected())
-                .bounds(x, y, BUTTON_WIDTH, BUTTON_HEIGHT)
-                .build());
-        x += BUTTON_WIDTH + BUTTON_GAP;
-        this.toggleButton = Button.builder(toggleLabel(), button -> {
-            StickyBoard.get().setShown(!StickyBoard.get().shown());
-            button.setMessage(toggleLabel());
-        }).bounds(x, y, BUTTON_WIDTH, BUTTON_HEIGHT).build();
-        addRenderableWidget(this.toggleButton);
-        x += BUTTON_WIDTH + BUTTON_GAP;
+        x += BUTTON_WIDTH + GROUP_GAP;
         this.settingsButton = addRenderableWidget(Button.builder(Component.translatable("screen.snipaste_mc_mod.settings"), button ->
                 this.minecraft.setScreen(new SnipasteConfigScreen(this)))
                 .bounds(x, y, BUTTON_WIDTH, BUTTON_HEIGHT)
@@ -87,11 +94,14 @@ public class StickyEditScreen extends Screen
     {
         placeBar();
         positionButtons();
-        if (this.toggleButton != null)
+        if (this.deleteButton != null)
         {
-            this.toggleButton.setMessage(toggleLabel());
+            this.deleteButton.active = this.selected >= 0;
         }
-        StickyRenderer.draw(graphics, true, this.selected);
+        if (StickyBoard.get().shown())
+        {
+            StickyRenderer.draw(graphics, true, this.selected);
+        }
         graphics.fill(this.barX, this.barY, this.barX + this.barWidth, this.barY + this.barHeight, 0xC0101010);
         graphics.drawCenteredString(this.font, Component.translatable("screen.snipaste_mc_mod.hint_edit"), this.width / 2, this.barY - 12, 0xFFFFFFFF);
         super.render(graphics, mouseX, mouseY, partialTick);
@@ -117,32 +127,48 @@ public class StickyEditScreen extends Screen
         {
             return false;
         }
-        if (insideBar(mouseX, mouseY))
+        if (insideBar(mouseX, mouseY) || !StickyBoard.get().shown())
         {
+            return true;
+        }
+        int index = StickyBoard.get().topmostAt(mouseX, mouseY);
+        if (index >= 0)
+        {
+            if (index == this.selected && closeSelected(mouseX, mouseY))
+            {
+                return true;
+            }
+            this.selected = StickyBoard.get().bringToFront(index);
+            StickyImage image = StickyBoard.get().get(this.selected);
+            this.drag = image == null ? Edge.BODY : edgeAt(image, mouseX, mouseY);
+            if (this.drag == Edge.NONE)
+            {
+                this.drag = Edge.BODY;
+            }
+            remember(image);
+            this.grabX = mouseX;
+            this.grabY = mouseY;
             return true;
         }
         if (closeSelected(mouseX, mouseY))
         {
             return true;
         }
-
-        int index = StickyBoard.get().topmostAt(mouseX, mouseY);
-        if (index < 0)
+        StickyImage selectedImage = StickyBoard.get().get(this.selected);
+        if (selectedImage != null)
         {
-            this.selected = -1;
-            this.drag = Edge.NONE;
-            return true;
+            Edge edge = edgeAt(selectedImage, mouseX, mouseY);
+            if (edge != Edge.NONE && edge != Edge.BODY)
+            {
+                this.drag = edge;
+                remember(selectedImage);
+                this.grabX = mouseX;
+                this.grabY = mouseY;
+                return true;
+            }
         }
-        this.selected = StickyBoard.get().bringToFront(index);
-        StickyImage image = StickyBoard.get().get(this.selected);
-        this.drag = image == null ? Edge.NONE : edgeAt(image, mouseX, mouseY);
-        if (this.drag == Edge.NONE)
-        {
-            this.drag = Edge.BODY;
-        }
-        remember(image);
-        this.grabX = mouseX;
-        this.grabY = mouseY;
+        this.selected = -1;
+        this.drag = Edge.NONE;
         return true;
     }
 
@@ -158,11 +184,18 @@ public class StickyEditScreen extends Screen
             return false;
         }
         StickyImage image = StickyBoard.get().get(this.selected);
-        if (image == null || this.drag == Edge.NONE)
+        if (image == null || this.drag == Edge.NONE || !StickyBoard.get().shown())
         {
             return false;
         }
-        resize(image, mouseX, mouseY, hasShiftDown());
+        if (isCorner(this.drag))
+        {
+            resizeCorner(image, mouseX, mouseY);
+        }
+        else
+        {
+            resize(image, mouseX, mouseY, hasShiftDown() || !SnipasteConfig.allowStretch());
+        }
         return true;
     }
 
@@ -209,8 +242,7 @@ public class StickyEditScreen extends Screen
 
     private void placeBar()
     {
-        int count = 4;
-        this.barWidth = count * BUTTON_WIDTH + (count - 1) * BUTTON_GAP + 8;
+        this.barWidth = 3 * BUTTON_WIDTH + BUTTON_GAP + GROUP_GAP + 8;
         this.barHeight = BUTTON_HEIGHT + 8;
         this.barX = (this.width - this.barWidth) / 2;
         this.barY = this.height - 8 - this.barHeight;
@@ -220,15 +252,14 @@ public class StickyEditScreen extends Screen
     {
         int x = this.barX + 4;
         int y = this.barY + 4;
-        for (var child : this.children())
-        {
-            if (child instanceof Button button)
-            {
-                button.setX(x);
-                button.setY(y);
-                x += BUTTON_WIDTH + BUTTON_GAP;
-            }
-        }
+        this.pickButton.setX(x);
+        this.pickButton.setY(y);
+        x += BUTTON_WIDTH + BUTTON_GAP;
+        this.deleteButton.setX(x);
+        this.deleteButton.setY(y);
+        x += BUTTON_WIDTH + GROUP_GAP;
+        this.settingsButton.setX(x);
+        this.settingsButton.setY(y);
     }
 
     private void drawTooltip(GuiGraphics graphics, int mouseX, int mouseY)
@@ -250,32 +281,19 @@ public class StickyEditScreen extends Screen
 
     private Component tooltipFor(Button button)
     {
-        if (button == this.toggleButton)
-        {
-            return Component.translatable(StickyBoard.get().shown()
-                    ? "screen.snipaste_mc_mod.tooltip_hide"
-                    : "screen.snipaste_mc_mod.tooltip_show");
-        }
         if (button == this.deleteButton)
         {
             return Component.translatable("screen.snipaste_mc_mod.tooltip_delete");
         }
-        if (button == this.copyButton)
+        if (button == this.pickButton)
         {
-            return Component.translatable("screen.snipaste_mc_mod.tooltip_copy");
+            return Component.translatable("screen.snipaste_mc_mod.tooltip_pick");
         }
         if (button == this.settingsButton)
         {
             return Component.translatable("screen.snipaste_mc_mod.tooltip_settings");
         }
         return null;
-    }
-
-    private static Component toggleLabel()
-    {
-        return Component.translatable(StickyBoard.get().shown()
-                ? "screen.snipaste_mc_mod.hide_short"
-                : "screen.snipaste_mc_mod.show_short");
     }
 
     private boolean insideBar(double mouseX, double mouseY)
@@ -295,39 +313,56 @@ public class StickyEditScreen extends Screen
         this.drag = Edge.NONE;
     }
 
-    private void copySelected()
-    {
-        StickyImage image = StickyBoard.get().get(this.selected);
-        if (image == null || image.texture().getPixels() == null)
-        {
-            return;
-        }
-        if (ImageFolder.save(Pixels.crop(image.texture().getPixels(), 0, 0, image.sourceWidth(), image.sourceHeight())))
-        {
-            SnipasteClient.tell(Component.translatable("message.snipaste_mc_mod.saved"));
-        }
-        else
-        {
-            SnipasteClient.tell(Component.translatable("message.snipaste_mc_mod.save_failed"));
-        }
-    }
-
     private boolean closeSelected(double mouseX, double mouseY)
     {
         StickyImage image = StickyBoard.get().get(this.selected);
-        if (image == null)
-        {
-            return false;
-        }
-        int size = 12;
-        int x = image.x() + image.width() - size;
-        int y = image.y();
-        if (mouseX < x || mouseX >= x + size || mouseY < y || mouseY >= y + size)
+        if (image == null || !StickyRenderer.overClose(image, mouseX, mouseY))
         {
             return false;
         }
         deleteSelected();
         return true;
+    }
+
+    private static boolean isCorner(Edge edge)
+    {
+        return edge == Edge.NE || edge == Edge.NW || edge == Edge.SE || edge == Edge.SW;
+    }
+
+    private void resizeCorner(StickyImage image, double mouseX, double mouseY)
+    {
+        boolean left = this.drag == Edge.W || this.drag == Edge.NW || this.drag == Edge.SW;
+        boolean top = this.drag == Edge.N || this.drag == Edge.NW || this.drag == Edge.NE;
+        int anchorX = left ? this.originX + this.originWidth : this.originX;
+        int anchorY = top ? this.originY + this.originHeight : this.originY;
+        double rawWidth = Math.abs(mouseX - anchorX);
+        double rawHeight = Math.abs(mouseY - anchorY);
+        float aspect = this.originHeight <= 0 ? 1.0F : this.originWidth / (float) this.originHeight;
+        int width;
+        int height;
+        if (rawHeight < 0.5D || rawWidth / rawHeight >= aspect)
+        {
+            width = (int) Math.round(rawWidth);
+            height = Math.round(width / aspect);
+        }
+        else
+        {
+            height = (int) Math.round(rawHeight);
+            width = Math.round(height * aspect);
+        }
+        if (width < MIN_SIZE)
+        {
+            width = MIN_SIZE;
+            height = Math.max(MIN_SIZE, Math.round(width / aspect));
+        }
+        if (height < MIN_SIZE)
+        {
+            height = MIN_SIZE;
+            width = Math.max(MIN_SIZE, Math.round(height * aspect));
+        }
+        int x = left ? anchorX - width : anchorX;
+        int y = top ? anchorY - height : anchorY;
+        image.place(x, y, width, height);
     }
 
     private void remember(StickyImage image)
@@ -444,7 +479,7 @@ public class StickyEditScreen extends Screen
 
     private Edge edgeAt(StickyImage image, double mouseX, double mouseY)
     {
-        int margin = 5;
+        int margin = HANDLE_MARGIN;
         boolean nearLeft = Math.abs(mouseX - image.x()) <= margin;
         boolean nearRight = Math.abs(mouseX - (image.x() + image.width())) <= margin;
         boolean nearTop = Math.abs(mouseY - image.y()) <= margin;
@@ -493,25 +528,203 @@ public class StickyEditScreen extends Screen
     private void updateCursor(int mouseX, int mouseY)
     {
         long window = this.minecraft.getWindow().getWindow();
-        long cursor = 0L;
-        StickyImage image = StickyBoard.get().get(this.selected);
-        if (image != null && !insideBar(mouseX, mouseY))
+        if (!StickyBoard.get().shown() || insideBar(mouseX, mouseY))
         {
-            Edge edge = edgeAt(image, mouseX, mouseY);
-            if (edge == Edge.E || edge == Edge.W)
+            GLFW.glfwSetCursor(window, 0L);
+            return;
+        }
+        StickyImage selectedImage = StickyBoard.get().get(this.selected);
+        if (this.drag == Edge.NONE && selectedImage != null && StickyRenderer.overClose(selectedImage, mouseX, mouseY))
+        {
+            GLFW.glfwSetCursor(window, 0L);
+            return;
+        }
+        Edge edge = this.drag;
+        if (edge == Edge.NONE)
+        {
+            int top = StickyBoard.get().topmostAt(mouseX, mouseY);
+            StickyImage image = top >= 0 ? StickyBoard.get().get(top) : selectedImage;
+            edge = image == null ? Edge.NONE : edgeAt(image, mouseX, mouseY);
+            if (top < 0 && (edge == Edge.NONE || edge == Edge.BODY))
             {
-                cursor = standardCursor(GLFW.GLFW_HRESIZE_CURSOR);
-            }
-            else if (edge == Edge.N || edge == Edge.S)
-            {
-                cursor = standardCursor(GLFW.GLFW_VRESIZE_CURSOR);
-            }
-            else if (edge == Edge.BODY || edge == Edge.NE || edge == Edge.NW || edge == Edge.SE || edge == Edge.SW)
-            {
-                cursor = standardCursor(GLFW.GLFW_HAND_CURSOR);
+                edge = Edge.NONE;
             }
         }
-        GLFW.glfwSetCursor(window, cursor);
+        GLFW.glfwSetCursor(window, cursorFor(edge));
+    }
+
+    private static long cursorFor(Edge edge)
+    {
+        return switch (edge)
+        {
+            case E, W -> standardCursor(GLFW.GLFW_HRESIZE_CURSOR);
+            case N, S -> standardCursor(GLFW.GLFW_VRESIZE_CURSOR);
+            case NW, SE -> diagonalCursor(true);
+            case NE, SW -> diagonalCursor(false);
+            case BODY -> standardCursor(GLFW.GLFW_HAND_CURSOR);
+            case NONE -> 0L;
+        };
+    }
+
+    private static long diagonalCursor(boolean nwse)
+    {
+        if (!diagonalCursorsReady)
+        {
+            resizeNwse = systemDiagonalCursor(true);
+            resizeNesw = systemDiagonalCursor(false);
+            if (resizeNwse == 0L)
+            {
+                resizeNwse = buildDiagonalCursor(true);
+            }
+            if (resizeNesw == 0L)
+            {
+                resizeNesw = buildDiagonalCursor(false);
+            }
+            diagonalCursorsReady = true;
+        }
+        long cursor = nwse ? resizeNwse : resizeNesw;
+        return cursor == 0L ? standardCursor(GLFW.GLFW_HAND_CURSOR) : cursor;
+    }
+
+    private static long systemDiagonalCursor(boolean nwse)
+    {
+        if (Platform.get() != Platform.WINDOWS)
+        {
+            return 0L;
+        }
+        return windowsDiagonalCursor(nwse);
+    }
+
+    private static long windowsDiagonalCursor(boolean nwse)
+    {
+        int id = nwse ? User32.IDC_SIZENWSE : User32.IDC_SIZENESW;
+        long handle = User32.nLoadCursor(0L, id);
+        if (handle == 0L)
+        {
+            return 0L;
+        }
+        // GLFW 3.3 has no diagonal standard cursor. Its Windows cursor object is
+        // { next, HCURSOR } and the window proc only reads the handle.
+        ByteBuffer block = MemoryUtil.memCalloc(16);
+        block.putLong(8, handle);
+        if (nwse)
+        {
+            nwseCursorBlock = block;
+        }
+        else
+        {
+            neswCursorBlock = block;
+        }
+        return MemoryUtil.memAddress(block);
+    }
+
+    private static long buildDiagonalCursor(boolean nwse)
+    {
+        int size = 32;
+        boolean[] core = new boolean[size * size];
+        if (nwse)
+        {
+            arrowHead(core, size, 5, 5, 1, 1);
+            arrowHead(core, size, 26, 26, -1, -1);
+            shaft(core, size, 12, 12, 19, 19);
+        }
+        else
+        {
+            arrowHead(core, size, 26, 5, -1, 1);
+            arrowHead(core, size, 5, 26, 1, -1);
+            shaft(core, size, 19, 12, 12, 19);
+        }
+        ByteBuffer pixels = MemoryUtil.memAlloc(size * size * 4);
+        GLFWImage image = GLFWImage.malloc();
+        try
+        {
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    boolean filled = core[y * size + x];
+                    boolean outline = !filled && touchesCore(core, size, x, y);
+                    if (filled)
+                    {
+                        pixels.put((byte) 255).put((byte) 255).put((byte) 255).put((byte) 255);
+                    }
+                    else if (outline)
+                    {
+                        pixels.put((byte) 0).put((byte) 0).put((byte) 0).put((byte) 255);
+                    }
+                    else
+                    {
+                        pixels.put((byte) 0).put((byte) 0).put((byte) 0).put((byte) 0);
+                    }
+                }
+            }
+            pixels.flip();
+            image.set(size, size, pixels);
+            return GLFW.glfwCreateCursor(image, 15, 15);
+        }
+        finally
+        {
+            image.free();
+            MemoryUtil.memFree(pixels);
+        }
+    }
+
+    private static void arrowHead(boolean[] core, int size, int tipX, int tipY, int dirX, int dirY)
+    {
+        int sideX = -dirY;
+        int sideY = dirX;
+        for (int step = 0; step <= 6; step++)
+        {
+            int spread = step < 5 ? step : 0;
+            int cx = tipX + dirX * step;
+            int cy = tipY + dirY * step;
+            for (int offset = -spread; offset <= spread; offset++)
+            {
+                mark(core, size, cx + sideX * offset, cy + sideY * offset);
+            }
+        }
+    }
+
+    private static void shaft(boolean[] core, int size, int x0, int y0, int x1, int y1)
+    {
+        int steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+        if (steps == 0)
+        {
+            mark(core, size, x0, y0);
+            return;
+        }
+        for (int step = 0; step <= steps; step++)
+        {
+            int x = x0 + (x1 - x0) * step / steps;
+            int y = y0 + (y1 - y0) * step / steps;
+            mark(core, size, x, y);
+            mark(core, size, x + 1, y);
+        }
+    }
+
+    private static void mark(boolean[] core, int size, int x, int y)
+    {
+        if (x >= 0 && y >= 0 && x < size && y < size)
+        {
+            core[y * size + x] = true;
+        }
+    }
+
+    private static boolean touchesCore(boolean[] core, int size, int x, int y)
+    {
+        for (int oy = -1; oy <= 1; oy++)
+        {
+            for (int ox = -1; ox <= 1; ox++)
+            {
+                int nx = x + ox;
+                int ny = y + oy;
+                if (nx >= 0 && ny >= 0 && nx < size && ny < size && core[ny * size + nx])
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static long standardCursor(int shape)

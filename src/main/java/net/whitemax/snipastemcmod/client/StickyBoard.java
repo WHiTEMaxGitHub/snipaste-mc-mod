@@ -66,7 +66,7 @@ public final class StickyBoard
         BufferedImage buffered;
         try
         {
-            buffered = ImageFolder.readLatest();
+            buffered = ImageFolder.readForPaste();
         }
         catch (IOException exception)
         {
@@ -99,10 +99,10 @@ public final class StickyBoard
         int guiWidth = minecraft.getWindow().getGuiScaledWidth();
         int guiHeight = minecraft.getWindow().getGuiScaledHeight();
         double guiScale = Math.max(1.0D, minecraft.getWindow().getGuiScale());
-        int displayWidth = Math.max(1, (int) Math.round(nativeImage.getWidth() / guiScale));
-        int displayHeight = Math.max(1, (int) Math.round(nativeImage.getHeight() / guiScale));
-        int maxWidth = Math.max(MIN_SIZE, guiWidth - 32);
-        int maxHeight = Math.max(MIN_SIZE, guiHeight - 32);
+        int displayWidth = Math.max(1, (int) Math.round(nativeImage.getWidth() / guiScale * 0.5D));
+        int displayHeight = Math.max(1, (int) Math.round(nativeImage.getHeight() / guiScale * 0.5D));
+        int maxWidth = Math.max(MIN_SIZE, guiWidth - 16);
+        int maxHeight = Math.max(MIN_SIZE, guiHeight - 16);
         if (displayWidth > maxWidth || displayHeight > maxHeight)
         {
             float fit = Math.min(maxWidth / (float) displayWidth, maxHeight / (float) displayHeight);
@@ -110,11 +110,11 @@ public final class StickyBoard
             displayHeight = Math.max(MIN_SIZE, Math.round(displayHeight * fit));
         }
 
-        int cascade = (images.size() % 8) * 16;
-        int x = (guiWidth - displayWidth) / 2 + cascade;
-        int y = (guiHeight - displayHeight) / 2 + cascade;
-        x = Mth.clamp(x, 16 - displayWidth, guiWidth - 16);
-        y = Mth.clamp(y, 16 - displayHeight, guiHeight - 16);
+        int cascade = (images.size() % 6) * 12;
+        int x = guiWidth - displayWidth - 8 - cascade;
+        int y = 8 + cascade;
+        x = Mth.clamp(x, 0, Math.max(0, guiWidth - displayWidth));
+        y = Mth.clamp(y, 0, Math.max(0, guiHeight - displayHeight));
 
         images.add(new StickyImage(
                 location,

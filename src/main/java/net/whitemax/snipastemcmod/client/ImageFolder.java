@@ -1,6 +1,7 @@
 package net.whitemax.snipastemcmod.client;
 
 import com.mojang.logging.LogUtils;
+import net.minecraft.Util;
 import net.minecraftforge.fml.loading.FMLPaths;
 import org.slf4j.Logger;
 
@@ -15,11 +16,13 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 
 public final class ImageFolder
 {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final String PREFIX = "snip-";
+    private static Path chosen;
 
     private ImageFolder()
     {
@@ -58,27 +61,100 @@ public final class ImageFolder
         }
     }
 
+    public static Path directory()
+    {
+        return FMLPaths.GAMEDIR.get().resolve("snipaste");
+    }
+
+    public static void choose(Path path)
+    {
+        chosen = path;
+    }
+
+    public static Path chosen()
+    {
+        return chosen;
+    }
+
+    public static BufferedImage readForPaste() throws IOException
+    {
+        if (chosen != null)
+        {
+            if (!Files.isRegularFile(chosen))
+            {
+                chosen = null;
+            }
+            else
+            {
+                return read(chosen);
+            }
+        }
+        return readLatest();
+    }
+
     public static BufferedImage readLatest() throws IOException
     {
-        Path newest = newest(directory());
-        if (newest == null)
-        {
-            return null;
-        }
-        try (InputStream input = Files.newInputStream(newest))
+        List<StoredImage> images = images();
+        return images.isEmpty() ? null : read(images.get(0).path());
+    }
+
+    public static BufferedImage read(Path path) throws IOException
+    {
+        try (InputStream input = Files.newInputStream(path))
         {
             BufferedImage image = ImageIO.read(input);
             if (image == null)
             {
-                throw new IOException("Not a readable image: " + newest);
+                throw new IOException("Not a readable image: " + path);
             }
             return Pixels.toBuffered(image);
         }
     }
 
-    private static Path directory()
+    public static List<StoredImage> images() throws IOException
     {
-        return FMLPaths.GAMEDIR.get().resolve("snipaste");
+        Path directory = directory();
+        Files.createDirectories(directory);
+        List<StoredImage> images = new ArrayList<>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory))
+        {
+            for (Path path : stream)
+            {
+                if (!Files.isRegularFile(path) || !isImage(path))
+                {
+                    continue;
+                }
+                images.add(new StoredImage(path, Files.getLastModifiedTime(path).toMillis(), Files.size(path)));
+            }
+        }
+        images.sort(Comparator.comparingLong(StoredImage::modified).reversed());
+        return images;
+    }
+
+    public static boolean openFolder()
+    {
+        try
+        {
+            Path directory = directory();
+            Files.createDirectories(directory);
+            Util.getPlatform().openFile(directory.toFile());
+            return true;
+        }
+        catch (IOException exception)
+        {
+            LOGGER.warn("Failed to open the snipaste folder", exception);
+            return false;
+        }
+    }
+
+    private static boolean isImage(Path path)
+    {
+        String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
+        return name.endsWith(".png")
+                || name.endsWith(".jpg")
+                || name.endsWith(".jpeg")
+                || name.endsWith(".gif")
+                || name.endsWith(".bmp");
     }
 
     private static void trim(Path directory) throws IOException
@@ -98,23 +174,6 @@ public final class ImageFolder
             Files.deleteIfExists(oldest.path);
             total -= oldest.size;
         }
-    }
-
-    private static Path newest(Path directory) throws IOException
-    {
-        if (!Files.isDirectory(directory))
-        {
-            return null;
-        }
-        StoredImage newest = null;
-        for (StoredImage image : list(directory))
-        {
-            if (newest == null || image.modified > newest.modified)
-            {
-                newest = image;
-            }
-        }
-        return newest == null ? null : newest.path;
     }
 
     private static List<StoredImage> list(Path directory) throws IOException
@@ -138,7 +197,7 @@ public final class ImageFolder
         return images;
     }
 
-    private record StoredImage(Path path, long modified, long size)
+    public record StoredImage(Path path, long modified, long size)
     {
     }
 }

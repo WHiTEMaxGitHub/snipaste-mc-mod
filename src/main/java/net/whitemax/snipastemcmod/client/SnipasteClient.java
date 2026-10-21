@@ -4,6 +4,9 @@ import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
+import net.minecraft.client.gui.screens.OptionsScreen;
+import net.minecraft.client.gui.screens.OptionsSubScreen;
+import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraftforge.api.distmarker.Dist;
@@ -22,6 +25,7 @@ public final class SnipasteClient
     private static final Logger LOGGER = LogUtils.getLogger();
     private static boolean pendingSnip;
     private static NativeImage capturedFrame;
+    private static boolean hideLatched;
 
     private SnipasteClient()
     {
@@ -54,29 +58,66 @@ public final class SnipasteClient
             return;
         }
         Minecraft minecraft = Minecraft.getInstance();
-        if (capturedFrame != null && minecraft.screen == null)
+        if (capturedFrame != null)
         {
             NativeImage frame = capturedFrame;
             capturedFrame = null;
-            minecraft.setScreen(new SnipScreen(frame));
+            pendingSnip = false;
+            if (minecraft.screen instanceof SnipScreen)
+            {
+                frame.close();
+            }
+            else
+            {
+                minecraft.setScreen(new SnipScreen(frame));
+            }
         }
 
+        boolean listening = minecraft.screen instanceof SnipasteKeybindsScreen keys && keys.isListening();
         boolean snip = consume(SnipasteKeybinds.SNIP);
         boolean paste = consume(SnipasteKeybinds.PASTE);
         boolean edit = consume(SnipasteKeybinds.EDIT);
+        boolean hide = SnipasteKeybinds.hideDown();
+        if (!hide)
+        {
+            hideLatched = false;
+        }
+        if (listening)
+        {
+            return;
+        }
+        if (hide)
+        {
+            toggleHidden();
+            if (SnipasteKeybinds.hideUses(SnipasteKeybinds.SNIP))
+            {
+                snip = false;
+            }
+            if (SnipasteKeybinds.hideUses(SnipasteKeybinds.PASTE))
+            {
+                paste = false;
+            }
+            if (SnipasteKeybinds.hideUses(SnipasteKeybinds.EDIT))
+            {
+                edit = false;
+            }
+        }
         Screen screen = minecraft.screen;
+        if (screen instanceof SnipScreen)
+        {
+            return;
+        }
+        if (snip)
+        {
+            requestSnip();
+        }
         if (screen instanceof StickyEditScreen editScreen)
         {
             if (editScreen.isRebinding())
             {
                 return;
             }
-            if (snip)
-            {
-                requestSnip();
-                minecraft.setScreen(null);
-            }
-            else if (edit)
+            if (edit && !snip)
             {
                 minecraft.setScreen(null);
             }
@@ -90,10 +131,6 @@ public final class SnipasteClient
         {
             return;
         }
-        if (snip)
-        {
-            requestSnip();
-        }
         if (paste)
         {
             StickyBoard.get().pasteLatest();
@@ -102,6 +139,18 @@ public final class SnipasteClient
         {
             minecraft.setScreen(new StickyEditScreen());
         }
+    }
+
+    private static void toggleHidden()
+    {
+        if (hideLatched)
+        {
+            return;
+        }
+        hideLatched = true;
+        boolean shown = !StickyBoard.get().shown();
+        StickyBoard.get().setShown(shown);
+        tell(Component.translatable(shown ? "message.snipaste_mc_mod.overlays_shown" : "message.snipaste_mc_mod.overlays_hidden"));
     }
 
     private static boolean consume(net.minecraft.client.KeyMapping mapping)
@@ -122,8 +171,9 @@ public final class SnipasteClient
             return;
         }
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.screen != null)
+        if (minecraft.screen instanceof SnipScreen)
         {
+            pendingSnip = false;
             return;
         }
         pendingSnip = false;
@@ -146,10 +196,50 @@ public final class SnipasteClient
     }
 
     @SubscribeEvent
+    public static void onScreenKey(ScreenEvent.KeyPressed.Pre event)
+    {
+        Screen screen = event.getScreen();
+        if (screen instanceof SnipScreen)
+        {
+            return;
+        }
+        if (screen instanceof SnipasteKeybindsScreen keybindsScreen && keybindsScreen.isListening())
+        {
+            return;
+        }
+        if (SnipasteKeybinds.hideMatches(event.getKeyCode(), event.getScanCode(), event.getModifiers()))
+        {
+            toggleHidden();
+            event.setCanceled(true);
+            return;
+        }
+        if (!SnipasteKeybinds.SNIP.matches(event.getKeyCode(), event.getScanCode()))
+        {
+            return;
+        }
+        requestSnip();
+        event.setCanceled(true);
+    }
+
+    @SubscribeEvent
     public static void onRenderGui(RenderGuiEvent.Post event)
     {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.screen != null || !StickyBoard.get().shown())
+        if (minecraft.screen != null || minecraft.level == null || !StickyBoard.get().shown())
+        {
+            return;
+        }
+        StickyRenderer.draw(event.getGuiGraphics(), false, -1);
+    }
+
+    @SubscribeEvent
+    public static void onScreenRenderPre(ScreenEvent.Render.Pre event)
+    {
+        if (!StickyBoard.get().shown() || event.getScreen() instanceof SnipScreen || event.getScreen() instanceof StickyEditScreen)
+        {
+            return;
+        }
+        if (!coversOverlay(event.getScreen()) && Minecraft.getInstance().level != null)
         {
             return;
         }
@@ -160,11 +250,23 @@ public final class SnipasteClient
     public static void onScreenRender(ScreenEvent.Render.Post event)
     {
         Screen screen = event.getScreen();
-        if (screen instanceof SnipScreen || screen instanceof StickyEditScreen || !StickyBoard.get().shown())
+        if (screen instanceof SnipScreen || screen instanceof StickyEditScreen || coversOverlay(screen) || !StickyBoard.get().shown() || Minecraft.getInstance().level == null)
         {
             return;
         }
         StickyRenderer.draw(event.getGuiGraphics(), false, -1);
+    }
+
+    private static boolean coversOverlay(Screen screen)
+    {
+        return screen instanceof SnipasteConfigScreen
+                || screen instanceof SnipasteKeybindsScreen
+                || screen instanceof SnipasteShadowScreen
+                || screen instanceof ImagePickScreen
+                || screen instanceof ImagePreviewScreen
+                || screen instanceof PauseScreen
+                || screen instanceof OptionsScreen
+                || screen instanceof OptionsSubScreen;
     }
 
     @SubscribeEvent
