@@ -18,8 +18,7 @@ import java.util.List;
 public class SnipasteKeybindsScreen extends Screen
 {
     private final Screen parent;
-    private KeyMapping listeningKey;
-    private boolean listeningClear;
+    private SnipasteKeybinds.Binding listening;
     private KeyList list;
     private Button resetAll;
 
@@ -50,7 +49,7 @@ public class SnipasteKeybindsScreen extends Screen
 
     public boolean isListening()
     {
-        return this.listeningKey != null || this.listeningClear;
+        return this.listening != null;
     }
 
     @Override
@@ -66,17 +65,8 @@ public class SnipasteKeybindsScreen extends Screen
         {
             return super.mouseClicked(mouseX, mouseY, button);
         }
-        InputConstants.Key key = InputConstants.Type.MOUSE.getOrCreate(button);
-        if (this.listeningClear)
-        {
-            SnipasteKeybinds.setHide(key, SnipasteKeybinds.heldModifierMask());
-            this.listeningClear = false;
-        }
-        else
-        {
-            SnipasteKeybinds.assign(this.listeningKey, key);
-            this.listeningKey = null;
-        }
+        this.listening.set(InputConstants.Type.MOUSE.getOrCreate(button), SnipasteKeybinds.heldModifierMask());
+        this.listening = null;
         return true;
     }
 
@@ -89,29 +79,12 @@ public class SnipasteKeybindsScreen extends Screen
         }
         if (keyCode == GLFW.GLFW_KEY_ESCAPE)
         {
-            if (this.listeningClear)
-            {
-                SnipasteKeybinds.setHide(InputConstants.UNKNOWN, 0);
-                this.listeningClear = false;
-            }
-            else
-            {
-                SnipasteKeybinds.assign(this.listeningKey, InputConstants.UNKNOWN);
-                this.listeningKey = null;
-            }
+            this.listening.set(InputConstants.UNKNOWN, 0);
+            this.listening = null;
             return true;
         }
-        InputConstants.Key key = InputConstants.getKey(keyCode, scanCode);
-        if (this.listeningClear)
-        {
-            SnipasteKeybinds.setHide(key, modifiers);
-            this.listeningClear = false;
-        }
-        else
-        {
-            SnipasteKeybinds.assign(this.listeningKey, key);
-            this.listeningKey = null;
-        }
+        this.listening.set(InputConstants.getKey(keyCode, scanCode), modifiers);
+        this.listening = null;
         return true;
     }
 
@@ -127,42 +100,30 @@ public class SnipasteKeybindsScreen extends Screen
 
     private void resetAll()
     {
-        if (!SnipasteKeybinds.SNIP.isDefault())
+        for (SnipasteKeybinds.Binding binding : SnipasteKeybinds.CHORDS)
         {
-            SnipasteKeybinds.assign(SnipasteKeybinds.SNIP, SnipasteKeybinds.SNIP.getDefaultKey());
-        }
-        if (!SnipasteKeybinds.PASTE.isDefault())
-        {
-            SnipasteKeybinds.assign(SnipasteKeybinds.PASTE, SnipasteKeybinds.PASTE.getDefaultKey());
-        }
-        if (!SnipasteKeybinds.EDIT.isDefault())
-        {
-            SnipasteKeybinds.assign(SnipasteKeybinds.EDIT, SnipasteKeybinds.EDIT.getDefaultKey());
-        }
-        if (!SnipasteConfig.hideIsDefault())
-        {
-            SnipasteKeybinds.resetHide();
+            if (!binding.isDefault())
+            {
+                binding.reset();
+            }
         }
     }
 
     private boolean allDefault()
     {
-        return SnipasteKeybinds.SNIP.isDefault()
-                && SnipasteKeybinds.PASTE.isDefault()
-                && SnipasteKeybinds.EDIT.isDefault()
-                && SnipasteConfig.hideIsDefault();
+        for (SnipasteKeybinds.Binding binding : SnipasteKeybinds.CHORDS)
+        {
+            if (!binding.isDefault())
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
-    private void select(KeyMapping mapping)
+    private void select(SnipasteKeybinds.Binding binding)
     {
-        this.listeningKey = mapping;
-        this.listeningClear = false;
-    }
-
-    private void selectClear()
-    {
-        this.listeningKey = null;
-        this.listeningClear = true;
+        this.listening = binding;
     }
 
     private final class KeyList extends ContainerObjectSelectionList<KeyList.Row>
@@ -173,19 +134,11 @@ public class SnipasteKeybindsScreen extends Screen
         {
             super(SnipasteKeybindsScreen.this.minecraft, SnipasteKeybindsScreen.this.width + 45, SnipasteKeybindsScreen.this.height, 43, SnipasteKeybindsScreen.this.height - 32, 20);
             addEntry(new CategoryRow(Component.translatable(SnipasteKeybinds.CATEGORY)));
-            addKey(SnipasteKeybinds.SNIP);
-            addKey(SnipasteKeybinds.PASTE);
-            addKey(SnipasteKeybinds.EDIT);
-            Component clearName = Component.translatable("screen.snipaste_mc_mod.clear_key");
-            this.maxNameWidth = Math.max(this.maxNameWidth, SnipasteKeybindsScreen.this.font.width(clearName));
-            addEntry(new ClearRow(clearName));
-        }
-
-        private void addKey(KeyMapping mapping)
-        {
-            Component name = Component.translatable(mapping.getName());
-            this.maxNameWidth = Math.max(this.maxNameWidth, SnipasteKeybindsScreen.this.font.width(name));
-            addEntry(new KeyRow(mapping, name));
+            for (SnipasteKeybinds.Binding binding : SnipasteKeybinds.CHORDS)
+            {
+                this.maxNameWidth = Math.max(this.maxNameWidth, SnipasteKeybindsScreen.this.font.width(binding.name()));
+                addEntry(new ChordRow(binding));
+            }
         }
 
         @Override
@@ -305,88 +258,44 @@ public class SnipasteKeybindsScreen extends Screen
             }
         }
 
-        private final class KeyRow extends BindRow
+        private final class ChordRow extends BindRow
         {
-            private final KeyMapping mapping;
+            private final SnipasteKeybinds.Binding binding;
 
-            private KeyRow(KeyMapping mapping, Component name)
+            private ChordRow(SnipasteKeybinds.Binding binding)
             {
-                super(name);
-                this.mapping = mapping;
+                super(binding.name());
+                this.binding = binding;
             }
 
             @Override
             boolean listening()
             {
-                return SnipasteKeybindsScreen.this.listeningKey == this.mapping;
+                return SnipasteKeybindsScreen.this.listening == this.binding;
             }
 
             @Override
             boolean conflict()
             {
-                if (this.mapping.isUnbound())
+                this.binding.adoptVanillaKey();
+                if (this.binding.key().equals(InputConstants.UNKNOWN))
                 {
                     return false;
                 }
-                for (KeyMapping other : SnipasteKeybindsScreen.this.minecraft.options.keyMappings)
+                for (SnipasteKeybinds.Binding other : SnipasteKeybinds.CHORDS)
                 {
-                    if (other != this.mapping && this.mapping.same(other))
+                    if (other != this.binding && this.binding.same(other))
                     {
                         return true;
                     }
                 }
-                return SnipasteConfig.hideModifiers() == 0 && this.mapping.getKey().equals(SnipasteConfig.hideKey());
-            }
-
-            @Override
-            boolean isDefault()
-            {
-                return this.mapping.isDefault();
-            }
-
-            @Override
-            Component keyMessage()
-            {
-                return this.mapping.getTranslatedKeyMessage();
-            }
-
-            @Override
-            void select()
-            {
-                SnipasteKeybindsScreen.this.select(this.mapping);
-            }
-
-            @Override
-            void reset()
-            {
-                SnipasteKeybinds.assign(this.mapping, this.mapping.getDefaultKey());
-            }
-        }
-
-        private final class ClearRow extends BindRow
-        {
-            private ClearRow(Component name)
-            {
-                super(name);
-            }
-
-            @Override
-            boolean listening()
-            {
-                return SnipasteKeybindsScreen.this.listeningClear;
-            }
-
-            @Override
-            boolean conflict()
-            {
-                InputConstants.Key key = SnipasteConfig.hideKey();
-                if (SnipasteConfig.hideModifiers() != 0 || key.equals(InputConstants.UNKNOWN))
+                if (this.binding.modifiers() != 0)
                 {
                     return false;
                 }
                 for (KeyMapping mapping : SnipasteKeybindsScreen.this.minecraft.options.keyMappings)
                 {
-                    if (mapping.getKey().equals(key))
+                    if (mapping != this.binding.vanilla() && mapping.getKey().equals(this.binding.key()))
                     {
                         return true;
                     }
@@ -397,25 +306,25 @@ public class SnipasteKeybindsScreen extends Screen
             @Override
             boolean isDefault()
             {
-                return SnipasteConfig.hideIsDefault();
+                return this.binding.isDefault();
             }
 
             @Override
             Component keyMessage()
             {
-                return SnipasteKeybinds.hideMessage();
+                return this.binding.message();
             }
 
             @Override
             void select()
             {
-                SnipasteKeybindsScreen.this.selectClear();
+                SnipasteKeybindsScreen.this.select(this.binding);
             }
 
             @Override
             void reset()
             {
-                SnipasteKeybinds.resetHide();
+                this.binding.reset();
             }
         }
     }

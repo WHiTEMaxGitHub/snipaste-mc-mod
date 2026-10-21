@@ -16,8 +16,15 @@ public final class SnipasteConfig
     public static final ForgeConfigSpec.IntValue BORDER_GREEN;
     public static final ForgeConfigSpec.IntValue BORDER_BLUE;
     public static final ForgeConfigSpec.BooleanValue ALLOW_STRETCH;
+    public static final ForgeConfigSpec.ConfigValue<String> SNIP_KEY;
+    public static final ForgeConfigSpec.IntValue SNIP_MODIFIERS;
+    public static final ForgeConfigSpec.ConfigValue<String> PASTE_KEY;
+    public static final ForgeConfigSpec.IntValue PASTE_MODIFIERS;
+    public static final ForgeConfigSpec.ConfigValue<String> EDIT_KEY;
+    public static final ForgeConfigSpec.IntValue EDIT_MODIFIERS;
     public static final ForgeConfigSpec.ConfigValue<String> HIDE_KEY;
     public static final ForgeConfigSpec.IntValue HIDE_MODIFIERS;
+    public static final int MODIFIER_MASK = GLFW.GLFW_MOD_SHIFT | GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_ALT;
     public static final ForgeConfigSpec.BooleanValue SHADOW_ENABLED;
     public static final ForgeConfigSpec.DoubleValue SHADOW_OPACITY;
     public static final ForgeConfigSpec.IntValue SHADOW_ANGLE;
@@ -61,12 +68,14 @@ public final class SnipasteConfig
         ALLOW_STRETCH = builder
                 .comment("允许单独改变浮层的宽或高。关闭后只能等比例缩放。")
                 .define("allowStretch", false);
-        HIDE_KEY = builder
-                .comment("清屏快捷键，使用原版按键名。")
-                .define("hideKey", DEFAULT_HIDE_KEY);
-        HIDE_MODIFIERS = builder
-                .comment("清屏快捷键的修饰键。1 是 Shift，2 是 Ctrl，4 是 Alt，可以相加。")
-                .defineInRange("hideModifiers", GLFW.GLFW_MOD_SHIFT, 0, GLFW.GLFW_MOD_SHIFT | GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_ALT);
+        SNIP_KEY = chordKey(builder, "snipKey", "截图快捷键，使用原版按键名。", "key.keyboard.f6");
+        SNIP_MODIFIERS = chordModifiers(builder, "snipModifiers", 0);
+        PASTE_KEY = chordKey(builder, "pasteKey", "贴图快捷键，使用原版按键名。", "key.keyboard.f7");
+        PASTE_MODIFIERS = chordModifiers(builder, "pasteModifiers", 0);
+        EDIT_KEY = chordKey(builder, "editKey", "编辑快捷键，使用原版按键名。", "key.keyboard.f8");
+        EDIT_MODIFIERS = chordModifiers(builder, "editModifiers", 0);
+        HIDE_KEY = chordKey(builder, "hideKey", "清屏快捷键，使用原版按键名。", DEFAULT_HIDE_KEY);
+        HIDE_MODIFIERS = chordModifiers(builder, "hideModifiers", GLFW.GLFW_MOD_SHIFT);
         SKIP_DELETE_CONFIRM = builder
                 .comment("勾选不再提示后记下的模组版本和存档。对不上就还会再问一次。")
                 .define("skipDeleteConfirm", "");
@@ -225,11 +234,11 @@ public final class SnipasteConfig
         ALLOW_STRETCH.set(allow);
     }
 
-    public static InputConstants.Key hideKey()
+    public static InputConstants.Key chordKey(ForgeConfigSpec.ConfigValue<String> key)
     {
         try
         {
-            return InputConstants.getKey(HIDE_KEY.get());
+            return InputConstants.getKey(key.get());
         }
         catch (IllegalArgumentException exception)
         {
@@ -237,27 +246,29 @@ public final class SnipasteConfig
         }
     }
 
-    public static int hideModifiers()
+    public static void setChord(ForgeConfigSpec.ConfigValue<String> key, ForgeConfigSpec.IntValue modifiers, InputConstants.Key pressed, int mask)
     {
-        return HIDE_MODIFIERS.get();
-    }
-
-    public static boolean hideIsDefault()
-    {
-        return DEFAULT_HIDE_KEY.equals(HIDE_KEY.get()) && HIDE_MODIFIERS.get() == GLFW.GLFW_MOD_SHIFT;
-    }
-
-    public static void setHide(InputConstants.Key key, int modifiers)
-    {
-        String name = key.getName();
-        int mask = modifiers & (GLFW.GLFW_MOD_SHIFT | GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_ALT);
-        if (name.equals(HIDE_KEY.get()) && HIDE_MODIFIERS.get() == mask)
+        String name = pressed.getName();
+        int stored = mask & MODIFIER_MASK;
+        if (name.equals(key.get()) && modifiers.get() == stored)
         {
             return;
         }
-        HIDE_KEY.set(name);
-        HIDE_MODIFIERS.set(mask);
+        key.set(name);
+        modifiers.set(stored);
         SPEC.save();
+    }
+
+    private static ForgeConfigSpec.ConfigValue<String> chordKey(ForgeConfigSpec.Builder builder, String name, String comment, String defaultName)
+    {
+        return builder.comment(comment).define(name, defaultName);
+    }
+
+    private static ForgeConfigSpec.IntValue chordModifiers(ForgeConfigSpec.Builder builder, String name, int defaultValue)
+    {
+        return builder
+                .comment("修饰键。1 是 Shift，2 是 Ctrl，4 是 Alt，可以相加。")
+                .defineInRange(name, defaultValue, 0, MODIFIER_MASK);
     }
 
     public static boolean skipsDeleteConfirm(String scope)

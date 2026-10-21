@@ -74,10 +74,10 @@ public final class SnipasteClient
         }
 
         boolean listening = minecraft.screen instanceof SnipasteKeybindsScreen keys && keys.isListening();
-        boolean snip = consume(SnipasteKeybinds.SNIP);
-        boolean paste = consume(SnipasteKeybinds.PASTE);
-        boolean edit = consume(SnipasteKeybinds.EDIT);
-        boolean hide = SnipasteKeybinds.hideDown();
+        boolean snip = SnipasteKeybinds.SNIP_CHORD.consume();
+        boolean paste = SnipasteKeybinds.PASTE_CHORD.consume();
+        boolean edit = SnipasteKeybinds.EDIT_CHORD.consume();
+        boolean hide = SnipasteKeybinds.HIDE_CHORD.poll();
         if (!hide)
         {
             hideLatched = false;
@@ -89,15 +89,15 @@ public final class SnipasteClient
         if (hide)
         {
             toggleHidden();
-            if (SnipasteKeybinds.hideUses(SnipasteKeybinds.SNIP))
+            if (SnipasteKeybinds.HIDE_CHORD.same(SnipasteKeybinds.SNIP_CHORD))
             {
                 snip = false;
             }
-            if (SnipasteKeybinds.hideUses(SnipasteKeybinds.PASTE))
+            if (SnipasteKeybinds.HIDE_CHORD.same(SnipasteKeybinds.PASTE_CHORD))
             {
                 paste = false;
             }
-            if (SnipasteKeybinds.hideUses(SnipasteKeybinds.EDIT))
+            if (SnipasteKeybinds.HIDE_CHORD.same(SnipasteKeybinds.EDIT_CHORD))
             {
                 edit = false;
             }
@@ -153,16 +153,6 @@ public final class SnipasteClient
         tell(Component.translatable(shown ? "message.snipaste_mc_mod.overlays_shown" : "message.snipaste_mc_mod.overlays_hidden"));
     }
 
-    private static boolean consume(net.minecraft.client.KeyMapping mapping)
-    {
-        boolean pressed = false;
-        while (mapping.consumeClick())
-        {
-            pressed = true;
-        }
-        return pressed;
-    }
-
     @SubscribeEvent
     public static void onRenderTick(TickEvent.RenderTickEvent event)
     {
@@ -207,13 +197,13 @@ public final class SnipasteClient
         {
             return;
         }
-        if (SnipasteKeybinds.hideMatches(event.getKeyCode(), event.getScanCode(), event.getModifiers()))
+        if (SnipasteKeybinds.HIDE_CHORD.matches(event.getKeyCode(), event.getScanCode(), event.getModifiers()))
         {
             toggleHidden();
             event.setCanceled(true);
             return;
         }
-        if (!SnipasteKeybinds.SNIP.matches(event.getKeyCode(), event.getScanCode()))
+        if (!SnipasteKeybinds.SNIP_CHORD.matches(event.getKeyCode(), event.getScanCode(), event.getModifiers()))
         {
             return;
         }

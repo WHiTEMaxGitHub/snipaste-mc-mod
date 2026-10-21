@@ -29,6 +29,11 @@ public final class SnipasteKeybinds
             "key.snipaste_mc_mod.edit",
             GLFW.GLFW_KEY_F8,
             CATEGORY);
+    public static final Binding SNIP_CHORD = new Binding(SNIP, Component.translatable(SNIP.getName()), SnipasteConfig.SNIP_KEY, SnipasteConfig.SNIP_MODIFIERS, "key.keyboard.f6", 0);
+    public static final Binding PASTE_CHORD = new Binding(PASTE, Component.translatable(PASTE.getName()), SnipasteConfig.PASTE_KEY, SnipasteConfig.PASTE_MODIFIERS, "key.keyboard.f7", 0);
+    public static final Binding EDIT_CHORD = new Binding(EDIT, Component.translatable(EDIT.getName()), SnipasteConfig.EDIT_KEY, SnipasteConfig.EDIT_MODIFIERS, "key.keyboard.f8", 0);
+    public static final Binding HIDE_CHORD = new Binding(null, Component.translatable("screen.snipaste_mc_mod.clear_key"), SnipasteConfig.HIDE_KEY, SnipasteConfig.HIDE_MODIFIERS, SnipasteConfig.DEFAULT_HIDE_KEY, GLFW.GLFW_MOD_SHIFT);
+    public static final Binding[] CHORDS = {SNIP_CHORD, PASTE_CHORD, EDIT_CHORD, HIDE_CHORD};
 
     private SnipasteKeybinds()
     {
@@ -42,23 +47,6 @@ public final class SnipasteKeybinds
         event.register(EDIT);
     }
 
-    public static boolean matches(KeyMapping mapping, int keyCode, int scanCode)
-    {
-        return mapping.matches(keyCode, scanCode);
-    }
-
-    public static boolean isPressed(KeyMapping mapping)
-    {
-        InputConstants.Key key = mapping.getKey();
-        long window = Minecraft.getInstance().getWindow().getWindow();
-        return switch (key.getType())
-        {
-            case KEYSYM -> InputConstants.isKeyDown(window, key.getValue());
-            case MOUSE -> GLFW.glfwGetMouseButton(window, key.getValue()) == GLFW.GLFW_PRESS;
-            case SCANCODE -> mapping.isDown();
-        };
-    }
-
     public static void assign(KeyMapping mapping, InputConstants.Key key)
     {
         mapping.setKey(key);
@@ -66,48 +54,9 @@ public final class SnipasteKeybinds
         Minecraft.getInstance().options.save();
     }
 
-    public static boolean hideDown()
+    public static Component format(InputConstants.Key key, int modifiers)
     {
-        InputConstants.Key key = SnipasteConfig.hideKey();
-        if (key.equals(InputConstants.UNKNOWN) || !isDown(key))
-        {
-            return false;
-        }
-        return heldModifiers(key) == SnipasteConfig.hideModifiers();
-    }
-
-    public static boolean hideMatches(int keyCode, int scanCode, int modifiers)
-    {
-        InputConstants.Key bound = SnipasteConfig.hideKey();
-        InputConstants.Key pressed = InputConstants.getKey(keyCode, scanCode);
-        if (bound.equals(InputConstants.UNKNOWN) || !pressed.equals(bound))
-        {
-            return false;
-        }
-        return relevantModifiers(pressed, modifiers) == SnipasteConfig.hideModifiers();
-    }
-
-    public static boolean hideUses(KeyMapping mapping)
-    {
-        InputConstants.Key bound = SnipasteConfig.hideKey();
-        return !bound.equals(InputConstants.UNKNOWN) && mapping.getKey().equals(bound);
-    }
-
-    public static void setHide(InputConstants.Key key, int modifiers)
-    {
-        SnipasteConfig.setHide(key, relevantModifiers(key, modifiers));
-    }
-
-    public static void resetHide()
-    {
-        SnipasteConfig.setHide(InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F7), GLFW.GLFW_MOD_SHIFT);
-    }
-
-    public static Component hideMessage()
-    {
-        InputConstants.Key key = SnipasteConfig.hideKey();
         Component keyName = key.getDisplayName();
-        int modifiers = SnipasteConfig.hideModifiers();
         if (modifiers == 0 || key.equals(InputConstants.UNKNOWN))
         {
             return keyName;
@@ -142,6 +91,130 @@ public final class SnipasteKeybinds
             label.append(" + ");
         }
         return label.append(keyName);
+    }
+
+    public static final class Binding
+    {
+        private final KeyMapping mapping;
+        private final Component name;
+        private final net.minecraftforge.common.ForgeConfigSpec.ConfigValue<String> keyName;
+        private final net.minecraftforge.common.ForgeConfigSpec.IntValue modifierValue;
+        private final InputConstants.Key defaultKey;
+        private final int defaultModifiers;
+
+        private Binding(KeyMapping mapping, Component name, net.minecraftforge.common.ForgeConfigSpec.ConfigValue<String> keyName, net.minecraftforge.common.ForgeConfigSpec.IntValue modifierValue, String defaultName, int defaultModifiers)
+        {
+            this.mapping = mapping;
+            this.name = name;
+            this.keyName = keyName;
+            this.modifierValue = modifierValue;
+            this.defaultKey = InputConstants.getKey(defaultName);
+            this.defaultModifiers = defaultModifiers;
+        }
+
+        public Component name()
+        {
+            return this.name;
+        }
+
+        public KeyMapping vanilla()
+        {
+            return this.mapping;
+        }
+
+        public InputConstants.Key key()
+        {
+            return SnipasteConfig.chordKey(this.keyName);
+        }
+
+        public int modifiers()
+        {
+            return this.modifierValue.get();
+        }
+
+        public Component message()
+        {
+            return format(key(), modifiers());
+        }
+
+        public boolean matches(int keyCode, int scanCode, int eventModifiers)
+        {
+            InputConstants.Key bound = key();
+            InputConstants.Key pressed = InputConstants.getKey(keyCode, scanCode);
+            if (bound.equals(InputConstants.UNKNOWN) || !pressed.equals(bound))
+            {
+                return false;
+            }
+            return relevantModifiers(pressed, eventModifiers) == modifiers();
+        }
+
+        public boolean consume()
+        {
+            adoptVanillaKey();
+            if (this.mapping == null)
+            {
+                return false;
+            }
+            boolean clicked = false;
+            while (this.mapping.consumeClick())
+            {
+                clicked = true;
+            }
+            if (!clicked || key().equals(InputConstants.UNKNOWN))
+            {
+                return false;
+            }
+            return heldModifiers(key()) == modifiers();
+        }
+
+        public boolean poll()
+        {
+            adoptVanillaKey();
+            InputConstants.Key bound = key();
+            if (bound.equals(InputConstants.UNKNOWN) || !isDown(bound))
+            {
+                return false;
+            }
+            return heldModifiers(bound) == modifiers();
+        }
+
+        public void set(InputConstants.Key key, int modifiers)
+        {
+            SnipasteConfig.setChord(this.keyName, this.modifierValue, key, relevantModifiers(key, modifiers));
+            if (this.mapping != null)
+            {
+                assign(this.mapping, key);
+            }
+        }
+
+        public void reset()
+        {
+            set(this.defaultKey, this.defaultModifiers);
+        }
+
+        public boolean isDefault()
+        {
+            return key().equals(this.defaultKey) && modifiers() == this.defaultModifiers;
+        }
+
+        public boolean same(Binding other)
+        {
+            InputConstants.Key bound = key();
+            return !bound.equals(InputConstants.UNKNOWN) && bound.equals(other.key()) && modifiers() == other.modifiers();
+        }
+
+        public void adoptVanillaKey()
+        {
+            if (this.mapping == null)
+            {
+                return;
+            }
+            InputConstants.Key vanilla = this.mapping.getKey();
+            if (!vanilla.equals(key()))
+            {
+                SnipasteConfig.setChord(this.keyName, this.modifierValue, vanilla, 0);
+            }
+        }
     }
 
     public static int relevantModifiers(InputConstants.Key key, int modifiers)
