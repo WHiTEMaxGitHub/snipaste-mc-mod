@@ -117,19 +117,19 @@ public class SnipasteBorderScreen extends Screen
         this.widthBox.tick();
         if (this.widthBox.isFocused() && !force)
         {
-            Double value = parseNumber(this.widthBox.getValue());
+            Double value = NumberBoxes.parse(this.widthBox.getValue());
             if (value != null && value >= 0.1D && value <= 16.0D)
             {
                 SnipasteConfig.setBorderWidth(value);
             }
             return;
         }
-        Double value = parseNumber(this.widthBox.getValue());
+        Double value = NumberBoxes.parse(this.widthBox.getValue());
         if (value != null)
         {
-            SnipasteConfig.setBorderWidth(Math.max(0.1D, Math.min(16.0D, value)));
+            SnipasteConfig.setBorderWidth(value);
         }
-        show(this.widthBox, formatWidth(SnipasteConfig.borderWidth()));
+        NumberBoxes.show(this.widthBox, formatWidth(SnipasteConfig.borderWidth()));
     }
 
     private void syncChannel(EditBox box, int channel, boolean force)
@@ -141,18 +141,17 @@ public class SnipasteBorderScreen extends Screen
         box.tick();
         if (box.isFocused() && !force)
         {
-            Double value = parseNumber(box.getValue());
+            Double value = NumberBoxes.parse(box.getValue());
             if (value != null && value >= 0.0D && value <= 255.0D)
             {
                 SnipasteConfig.setBorderChannel(channel, (int) Math.round(value));
             }
             return;
         }
-        Double value = parseNumber(box.getValue());
+        Double value = NumberBoxes.parse(box.getValue());
         if (value != null)
         {
-            int clamped = (int) Math.round(Math.max(0.0D, Math.min(255.0D, value)));
-            SnipasteConfig.setBorderChannel(channel, clamped);
+            SnipasteConfig.setBorderChannel(channel, (int) Math.round(value));
         }
         int current = switch (channel)
         {
@@ -160,7 +159,7 @@ public class SnipasteBorderScreen extends Screen
             case 1 -> SnipasteConfig.borderGreen();
             default -> SnipasteConfig.borderBlue();
         };
-        show(box, String.valueOf(current));
+        NumberBoxes.show(box, String.valueOf(current));
     }
 
     private EditBox numberBox(int x, int y, int width, String value, int maxLength, boolean decimal)
@@ -168,7 +167,7 @@ public class SnipasteBorderScreen extends Screen
         EditBox box = new EditBox(this.font, x, y, width, 20, Component.empty());
         box.setMaxLength(maxLength);
         box.setValue(value);
-        box.setFilter(decimal ? SnipasteBorderScreen::acceptsDecimal : SnipasteBorderScreen::acceptsInteger);
+        box.setFilter(decimal ? SnipasteBorderScreen::acceptsDecimal : NumberBoxes::acceptsInteger);
         return addRenderableWidget(box);
     }
 
@@ -196,40 +195,6 @@ public class SnipasteBorderScreen extends Screen
             default -> "screen.snipaste_mc_mod.channel_blue";
         };
         return Component.translatable(key).getString();
-    }
-
-    private static void show(EditBox box, String text)
-    {
-        if (!text.equals(box.getValue()))
-        {
-            box.setValue(text);
-        }
-    }
-
-    private static Double parseNumber(String text)
-    {
-        if (text == null || text.isEmpty() || ".".equals(text))
-        {
-            return null;
-        }
-        String normalized = text.endsWith(".") ? text.substring(0, text.length() - 1) : text;
-        if (normalized.isEmpty())
-        {
-            return null;
-        }
-        try
-        {
-            return Double.parseDouble(normalized);
-        }
-        catch (NumberFormatException exception)
-        {
-            return null;
-        }
-    }
-
-    private static boolean acceptsInteger(String text)
-    {
-        return text.matches("\\d{0,6}");
     }
 
     private static boolean acceptsDecimal(String text)

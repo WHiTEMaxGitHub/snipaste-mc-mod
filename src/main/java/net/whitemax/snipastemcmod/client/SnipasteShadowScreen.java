@@ -43,9 +43,12 @@ public class SnipasteShadowScreen extends Screen
         addRenderableWidget(new IntSlider(right, y, 150, 20, 0, 32, SnipasteConfig.shadowSpread(),
                 "screen.snipaste_mc_mod.shadow_spread", SnipasteConfig::setShadowSpread));
         y += ROW;
-        addRenderableWidget(new ChannelSlider(left, y, 100, 20, 0));
-        addRenderableWidget(new ChannelSlider(left + 105, y, 100, 20, 1));
-        addRenderableWidget(new ChannelSlider(left + 210, y, 100, 20, 2));
+        addRenderableWidget(new IntSlider(left, y, 100, 20, 0, 255, SnipasteConfig.shadowRed(),
+                "screen.snipaste_mc_mod.shadow_red", value -> SnipasteConfig.setShadowChannel(0, value)));
+        addRenderableWidget(new IntSlider(left + 105, y, 100, 20, 0, 255, SnipasteConfig.shadowGreen(),
+                "screen.snipaste_mc_mod.shadow_green", value -> SnipasteConfig.setShadowChannel(1, value)));
+        addRenderableWidget(new IntSlider(left + 210, y, 100, 20, 0, 255, SnipasteConfig.shadowBlue(),
+                "screen.snipaste_mc_mod.shadow_blue", value -> SnipasteConfig.setShadowChannel(2, value)));
         addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> onClose())
                 .bounds(this.width / 2 - 100, this.height - 27, 200, 20)
                 .build());
@@ -164,50 +167,6 @@ public class SnipasteShadowScreen extends Screen
         private static double toSlider(int min, int max, int current)
         {
             return (Math.max(min, Math.min(max, current)) - min) / (double) (max - min);
-        }
-    }
-
-    private static final class ChannelSlider extends AbstractSliderButton
-    {
-        private final int channel;
-
-        private ChannelSlider(int x, int y, int width, int height, int channel)
-        {
-            super(x, y, width, height, Component.empty(), channelValue(channel) / 255.0D);
-            this.channel = channel;
-            updateMessage();
-        }
-
-        @Override
-        protected void updateMessage()
-        {
-            setMessage(Component.translatable(labelKey(), (int) Math.round(this.value * 255.0D)));
-        }
-
-        @Override
-        protected void applyValue()
-        {
-            SnipasteConfig.setShadowChannel(this.channel, (int) Math.round(this.value * 255.0D));
-        }
-
-        private String labelKey()
-        {
-            return switch (this.channel)
-            {
-                case 0 -> "screen.snipaste_mc_mod.shadow_red";
-                case 1 -> "screen.snipaste_mc_mod.shadow_green";
-                default -> "screen.snipaste_mc_mod.shadow_blue";
-            };
-        }
-
-        private static int channelValue(int channel)
-        {
-            return switch (channel)
-            {
-                case 0 -> SnipasteConfig.shadowRed();
-                case 1 -> SnipasteConfig.shadowGreen();
-                default -> SnipasteConfig.shadowBlue();
-            };
         }
     }
 }

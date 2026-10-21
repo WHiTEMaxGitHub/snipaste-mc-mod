@@ -114,12 +114,7 @@ public final class SnipasteConfig
 
     public static void setDefaultOpacity(double opacity)
     {
-        double clamped = Math.max(0.0D, Math.min(1.0D, opacity));
-        if (Math.abs(DEFAULT_OPACITY.get() - clamped) < 0.001D)
-        {
-            return;
-        }
-        DEFAULT_OPACITY.set(clamped);
+        setDouble(DEFAULT_OPACITY, opacity, 0.0D, 1.0D);
     }
 
     public static int maxFolderMegabytes()
@@ -213,12 +208,7 @@ public final class SnipasteConfig
             case 1 -> BORDER_GREEN;
             default -> BORDER_BLUE;
         };
-        int clamped = Math.max(0, Math.min(255, value));
-        if (target.get() == clamped)
-        {
-            return;
-        }
-        target.set(clamped);
+        setInt(target, value, 0, 255);
     }
 
     public static boolean allowStretch()
@@ -307,12 +297,7 @@ public final class SnipasteConfig
 
     public static void setShadowOpacity(double opacity)
     {
-        double clamped = Math.max(0.0D, Math.min(1.0D, opacity));
-        if (Math.abs(SHADOW_OPACITY.get() - clamped) < 0.001D)
-        {
-            return;
-        }
-        SHADOW_OPACITY.set(clamped);
+        setDouble(SHADOW_OPACITY, opacity, 0.0D, 1.0D);
     }
 
     public static int shadowAngle()
@@ -322,12 +307,7 @@ public final class SnipasteConfig
 
     public static void setShadowAngle(int angle)
     {
-        int clamped = Math.max(0, Math.min(360, angle));
-        if (SHADOW_ANGLE.get() == clamped)
-        {
-            return;
-        }
-        SHADOW_ANGLE.set(clamped);
+        setInt(SHADOW_ANGLE, angle, 0, 360);
     }
 
     public static double shadowDistance()
@@ -400,6 +380,16 @@ public final class SnipasteConfig
     {
         int clamped = Math.max(min, Math.min(max, value));
         if (target.get() == clamped)
+        {
+            return;
+        }
+        target.set(clamped);
+    }
+
+    private static void setDouble(ForgeConfigSpec.DoubleValue target, double value, double min, double max)
+    {
+        double clamped = Math.max(min, Math.min(max, value));
+        if (Math.abs(target.get() - clamped) < 0.001D)
         {
             return;
         }

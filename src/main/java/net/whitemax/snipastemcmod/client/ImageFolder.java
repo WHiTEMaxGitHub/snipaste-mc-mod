@@ -67,6 +67,16 @@ public final class ImageFolder
         return FMLPaths.GAMEDIR.get().resolve("snipaste");
     }
 
+    public static Path root()
+    {
+        return directory().toAbsolutePath().normalize();
+    }
+
+    public static boolean contains(Path path)
+    {
+        return path != null && path.toAbsolutePath().normalize().startsWith(root());
+    }
+
     public static void choose(Path path)
     {
         chosen = path;
@@ -123,9 +133,9 @@ public final class ImageFolder
 
     public static List<Entry> children(Path directory) throws IOException
     {
-        Path root = directory().toAbsolutePath().normalize();
-        Path current = directory == null ? root : directory.toAbsolutePath().normalize();
-        if (!current.startsWith(root) || !Files.isDirectory(current))
+        Path root = root();
+        Path current = contains(directory) ? directory.toAbsolutePath().normalize() : root;
+        if (!Files.isDirectory(current))
         {
             current = root;
         }
@@ -158,9 +168,9 @@ public final class ImageFolder
 
     public static String displayName(Path path)
     {
-        Path root = directory().toAbsolutePath().normalize();
+        Path root = root();
         Path target = path.toAbsolutePath().normalize();
-        if (target.startsWith(root))
+        if (contains(path))
         {
             return root.relativize(target).toString().replace('\\', '/');
         }
@@ -198,9 +208,9 @@ public final class ImageFolder
         }
         try
         {
-            Path root = directory().toAbsolutePath().normalize();
+            Path root = root();
             Path from = source.toAbsolutePath().normalize();
-            if (from.equals(root) || !from.startsWith(root) || !Files.exists(from) || Files.isSymbolicLink(from))
+            if (from.equals(root) || !contains(from) || !Files.exists(from) || Files.isSymbolicLink(from))
             {
                 return RenameOutcome.failed();
             }
@@ -329,9 +339,8 @@ public final class ImageFolder
         }
         try
         {
-            Path directory = directory().toAbsolutePath().normalize();
             Path target = path.toAbsolutePath().normalize();
-            if (!target.startsWith(directory) || !Files.isRegularFile(target))
+            if (!contains(target) || !Files.isRegularFile(target))
             {
                 return false;
             }
@@ -349,21 +358,12 @@ public final class ImageFolder
         }
     }
 
-    public static boolean openFolder()
-    {
-        return open(directory());
-    }
-
     public static boolean open(Path path)
     {
         try
         {
-            Path root = directory().toAbsolutePath().normalize();
-            Path target = path == null ? root : path.toAbsolutePath().normalize();
-            if (!target.startsWith(root))
-            {
-                target = root;
-            }
+            Path root = root();
+            Path target = contains(path) ? path.toAbsolutePath().normalize() : root;
             if (!Files.isDirectory(target))
             {
                 target = root;

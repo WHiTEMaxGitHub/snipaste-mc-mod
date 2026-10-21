@@ -131,20 +131,19 @@ public class SnipasteConfigScreen extends Screen
         this.opacityBox.tick();
         if (this.opacityBox.isFocused() && !force)
         {
-            Double value = parseNumber(this.opacityBox.getValue());
+            Double value = NumberBoxes.parse(this.opacityBox.getValue());
             if (value != null && value >= 0.0D && value <= 100.0D)
             {
                 SnipasteConfig.setDefaultOpacity(value / 100.0D);
             }
             return;
         }
-        Double value = parseNumber(this.opacityBox.getValue());
+        Double value = NumberBoxes.parse(this.opacityBox.getValue());
         if (value != null)
         {
-            double clamped = Math.max(0.0D, Math.min(100.0D, value));
-            SnipasteConfig.setDefaultOpacity(clamped / 100.0D);
+            SnipasteConfig.setDefaultOpacity(value / 100.0D);
         }
-        show(this.opacityBox, String.valueOf(opacityPercent()));
+        NumberBoxes.show(this.opacityBox, String.valueOf(opacityPercent()));
     }
 
     private void syncFolder(boolean force)
@@ -156,20 +155,19 @@ public class SnipasteConfigScreen extends Screen
         this.folderBox.tick();
         if (this.folderBox.isFocused() && !force)
         {
-            Double value = parseNumber(this.folderBox.getValue());
+            Double value = NumberBoxes.parse(this.folderBox.getValue());
             if (value != null && value >= 0.0D && value <= 1024.0D)
             {
                 setFolder((int) Math.round(value));
             }
             return;
         }
-        Double value = parseNumber(this.folderBox.getValue());
+        Double value = NumberBoxes.parse(this.folderBox.getValue());
         if (value != null)
         {
-            int clamped = (int) Math.round(Math.max(0.0D, Math.min(1024.0D, value)));
-            setFolder(clamped);
+            setFolder((int) Math.round(value));
         }
-        show(this.folderBox, String.valueOf(SnipasteConfig.maxFolderMegabytes()));
+        NumberBoxes.show(this.folderBox, String.valueOf(SnipasteConfig.maxFolderMegabytes()));
         if (force)
         {
             ImageFolder.enforceLimit();
@@ -179,14 +177,6 @@ public class SnipasteConfigScreen extends Screen
     private static void setFolder(int megabytes)
     {
         SnipasteConfig.addMaxFolderMegabytes(megabytes - SnipasteConfig.maxFolderMegabytes());
-    }
-
-    private static void show(EditBox box, String text)
-    {
-        if (!text.equals(box.getValue()))
-        {
-            box.setValue(text);
-        }
     }
 
     private static int opacityPercent()
@@ -199,7 +189,7 @@ public class SnipasteConfigScreen extends Screen
         EditBox box = new EditBox(this.font, x, y, width, 20, Component.empty());
         box.setMaxLength(maxLength);
         box.setValue(value);
-        box.setFilter(SnipasteConfigScreen::acceptsInteger);
+        box.setFilter(NumberBoxes::acceptsInteger);
         return addRenderableWidget(box);
     }
 
@@ -211,32 +201,6 @@ public class SnipasteConfigScreen extends Screen
     private static boolean over(int mouseX, int mouseY, int x, int y, int width)
     {
         return mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + 20;
-    }
-
-    private static Double parseNumber(String text)
-    {
-        if (text == null || text.isEmpty() || ".".equals(text))
-        {
-            return null;
-        }
-        String normalized = text.endsWith(".") ? text.substring(0, text.length() - 1) : text;
-        if (normalized.isEmpty())
-        {
-            return null;
-        }
-        try
-        {
-            return Double.parseDouble(normalized);
-        }
-        catch (NumberFormatException exception)
-        {
-            return null;
-        }
-    }
-
-    private static boolean acceptsInteger(String text)
-    {
-        return text.matches("\\d{0,6}");
     }
 
 }

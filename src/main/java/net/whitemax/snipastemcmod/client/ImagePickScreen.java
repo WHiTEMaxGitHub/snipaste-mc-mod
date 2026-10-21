@@ -112,7 +112,7 @@ public class ImagePickScreen extends Screen
 
     private boolean atRoot()
     {
-        return folder().toAbsolutePath().normalize().equals(ImageFolder.directory().toAbsolutePath().normalize());
+        return folder().toAbsolutePath().normalize().equals(ImageFolder.root());
     }
 
     private void enter(Path path)
@@ -127,8 +127,7 @@ public class ImagePickScreen extends Screen
     private void back()
     {
         Path parent = folder().toAbsolutePath().normalize().getParent();
-        Path root = ImageFolder.directory().toAbsolutePath().normalize();
-        if (parent == null || !parent.startsWith(root))
+        if (parent == null || !ImageFolder.contains(parent))
         {
             return;
         }
