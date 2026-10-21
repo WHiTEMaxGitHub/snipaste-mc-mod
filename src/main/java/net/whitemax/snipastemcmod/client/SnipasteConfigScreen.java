@@ -199,7 +199,7 @@ public class SnipasteConfigScreen extends Screen
         if (this.folderBox.isFocused() && !force)
         {
             Double value = parseNumber(this.folderBox.getValue());
-            if (value != null && value >= 1.0D && value <= 4096.0D)
+            if (value != null && value >= 0.0D && value <= 1024.0D)
             {
                 setFolder((int) Math.round(value));
             }
@@ -208,10 +208,14 @@ public class SnipasteConfigScreen extends Screen
         Double value = parseNumber(this.folderBox.getValue());
         if (value != null)
         {
-            int clamped = (int) Math.round(Math.max(1.0D, Math.min(4096.0D, value)));
+            int clamped = (int) Math.round(Math.max(0.0D, Math.min(1024.0D, value)));
             setFolder(clamped);
         }
         show(this.folderBox, String.valueOf(SnipasteConfig.maxFolderMegabytes()));
+        if (force)
+        {
+            ImageFolder.enforceLimit();
+        }
     }
 
     private void syncWidth(boolean force)

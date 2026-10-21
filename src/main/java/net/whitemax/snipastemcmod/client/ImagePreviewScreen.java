@@ -1,7 +1,9 @@
 package net.whitemax.snipastemcmod.client;
 
 import com.mojang.blaze3d.platform.NativeImage;
+import net.minecraft.Util;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.network.chat.Component;
@@ -21,6 +23,11 @@ public class ImagePreviewScreen extends Screen
     private ResourceLocation location;
     private int imageWidth;
     private int imageHeight;
+    private int drawX;
+    private int drawY;
+    private int drawWidth;
+    private int drawHeight;
+    private long lastClickAt;
 
     public ImagePreviewScreen(Screen parent, Path path)
     {
@@ -32,6 +39,9 @@ public class ImagePreviewScreen extends Screen
     @Override
     protected void init()
     {
+        addRenderableWidget(Button.builder(Component.translatable("screen.snipaste_mc_mod.delete_short"), button -> deleteImage())
+                .bounds(this.width / 2 - 50, this.height - 28, 100, 20)
+                .build());
         if (this.location != null)
         {
             return;
@@ -92,32 +102,94 @@ public class ImagePreviewScreen extends Screen
     }
 
     @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button)
+    {
+        if (super.mouseClicked(mouseX, mouseY, button))
+        {
+            this.lastClickAt = 0L;
+            return true;
+        }
+        if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT || !overImage(mouseX, mouseY))
+        {
+            return false;
+        }
+        long now = Util.getMillis();
+        if (now - this.lastClickAt < 250L)
+        {
+            this.lastClickAt = 0L;
+            pasteDirect();
+            return true;
+        }
+        this.lastClickAt = now;
+        return true;
+    }
+
+    private void deleteImage()
+    {
+        if (!ImageFolder.delete(this.path))
+        {
+            SnipasteClient.tell(Component.translatable("message.snipaste_mc_mod.delete_failed"));
+            return;
+        }
+        onClose();
+    }
+
+    private void pasteDirect()
+    {
+        ImageFolder.choose(this.path);
+        if (!StickyBoard.get().pasteLatest())
+        {
+            return;
+        }
+        Screen destination = this.parent instanceof ImagePickScreen pick ? pick.previous() : this.parent;
+        if (destination instanceof StickyEditScreen edit)
+        {
+            edit.selectLast();
+        }
+        this.minecraft.setScreen(destination);
+    }
+
+    private boolean overImage(double mouseX, double mouseY)
+    {
+        return this.drawWidth > 0
+                && mouseX >= this.drawX
+                && mouseY >= this.drawY
+                && mouseX < this.drawX + this.drawWidth
+                && mouseY < this.drawY + this.drawHeight;
+    }
+
+    @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick)
     {
         renderBackground(graphics);
         if (this.location != null && this.imageWidth > 0 && this.imageHeight > 0)
         {
-            int maxWidth = Math.max(1, this.width - 24);
-            int maxHeight = Math.max(1, this.height - 36);
+            int maxWidth = Math.max(1, this.width - 28);
+            int maxHeight = Math.max(1, this.height - 76);
             float scale = Math.min(maxWidth / (float) this.imageWidth, maxHeight / (float) this.imageHeight);
-            int drawWidth = Math.max(1, Math.round(this.imageWidth * scale));
-            int drawHeight = Math.max(1, Math.round(this.imageHeight * scale));
-            int x = (this.width - drawWidth) / 2;
-            int y = (this.height - drawHeight) / 2;
+            this.drawWidth = Math.max(1, Math.round(this.imageWidth * scale));
+            this.drawHeight = Math.max(1, Math.round(this.imageHeight * scale));
+            this.drawX = (this.width - this.drawWidth) / 2;
+            this.drawY = Math.max(8, (this.height - 52 - this.drawHeight) / 2);
             graphics.blit(
                     this.location,
-                    x,
-                    y,
-                    drawWidth,
-                    drawHeight,
+                    this.drawX,
+                    this.drawY,
+                    this.drawWidth,
+                    this.drawHeight,
                     0.0F,
                     0.0F,
                     this.imageWidth,
                     this.imageHeight,
                     this.imageWidth,
                     this.imageHeight);
+            int border = 0xFFFFFFFF;
+            graphics.fill(this.drawX - 1, this.drawY - 1, this.drawX + this.drawWidth + 1, this.drawY, border);
+            graphics.fill(this.drawX - 1, this.drawY + this.drawHeight, this.drawX + this.drawWidth + 1, this.drawY + this.drawHeight + 1, border);
+            graphics.fill(this.drawX - 1, this.drawY, this.drawX, this.drawY + this.drawHeight, border);
+            graphics.fill(this.drawX + this.drawWidth, this.drawY, this.drawX + this.drawWidth + 1, this.drawY + this.drawHeight, border);
         }
-        graphics.drawCenteredString(this.font, Component.translatable("screen.snipaste_mc_mod.preview_hint"), this.width / 2, this.height - 16, 0xFFFFFF);
+        graphics.drawCenteredString(this.font, Component.translatable("screen.snipaste_mc_mod.preview_hint"), this.width / 2, this.height - 44, 0xFFFFFF);
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 }

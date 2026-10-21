@@ -1,6 +1,7 @@
 package net.whitemax.snipastemcmod.client;
 
 import com.mojang.blaze3d.platform.NativeImage;
+import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -37,7 +38,7 @@ public class ImagePickScreen extends Screen
         {
             this.list.close();
         }
-        this.list = new ImageList(this.minecraft, this.width, this.height);
+        this.list = new ImageList(this, this.minecraft, this.width, this.height);
         this.addWidget(this.list);
         this.list.reload();
         int y = this.height - 28;
@@ -59,6 +60,25 @@ public class ImagePickScreen extends Screen
     @Override
     public void onClose()
     {
+        this.minecraft.setScreen(this.parent);
+    }
+
+    Screen previous()
+    {
+        return this.parent;
+    }
+
+    private void pasteAndReturn(Path path)
+    {
+        ImageFolder.choose(path);
+        if (!StickyBoard.get().pasteLatest())
+        {
+            return;
+        }
+        if (this.parent instanceof StickyEditScreen edit)
+        {
+            edit.selectLast();
+        }
         this.minecraft.setScreen(this.parent);
     }
 
@@ -129,11 +149,13 @@ public class ImagePickScreen extends Screen
 
     private static final class ImageList extends ObjectSelectionList<ImageList.Row>
     {
+        private final ImagePickScreen screen;
         private int nextId;
 
-        private ImageList(Minecraft minecraft, int width, int height)
+        private ImageList(ImagePickScreen screen, Minecraft minecraft, int width, int height)
         {
             super(minecraft, width, height, 32, height - 52, 40);
+            this.screen = screen;
             this.setRenderBackground(true);
             this.setRenderTopAndBottom(false);
         }
@@ -190,6 +212,7 @@ public class ImagePickScreen extends Screen
             private final int fullWidth;
             private final int fullHeight;
             private boolean released;
+            private long lastClickAt;
 
             private Row(ImageList list, Path path, DynamicTexture texture, ResourceLocation location, int sourceWidth, int sourceHeight, int fullWidth, int fullHeight)
             {
@@ -283,8 +306,15 @@ public class ImagePickScreen extends Screen
                 {
                     return false;
                 }
+                long now = Util.getMillis();
+                boolean again = this.list.getSelected() == this && now - this.lastClickAt < 250L;
+                this.lastClickAt = now;
                 this.list.setSelected(this);
                 ImageFolder.choose(this.path);
+                if (again)
+                {
+                    this.list.screen.pasteAndReturn(this.path);
+                }
                 return true;
             }
         }

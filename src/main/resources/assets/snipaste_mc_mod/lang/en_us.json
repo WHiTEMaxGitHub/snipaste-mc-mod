@@ -37,7 +37,7 @@
   "screen.snipaste_mc_mod.folder_label": "Folder limit",
   "screen.snipaste_mc_mod.border_color": "Border color",
   "screen.snipaste_mc_mod.opacity_tip": "Opacity used by newly pasted images, as a percent. Range 5 to 100.",
-  "screen.snipaste_mc_mod.folder_tip": "Size cap of the snipaste folder in the game directory, in MB. Oldest screenshots are removed past the cap. Range 1 to 4096.",
+  "screen.snipaste_mc_mod.folder_tip": "Size cap of the snipaste folder in the game directory, in MB. Once the folder is larger than this, the earliest images are removed. 0 never deletes. Range 0 to 1024.",
   "screen.snipaste_mc_mod.selected_opacity": "Selected opacity %s%%",
   "screen.snipaste_mc_mod.no_selection": "Nothing selected",
   "screen.snipaste_mc_mod.delete": "Delete",
@@ -74,9 +74,10 @@
   "screen.snipaste_mc_mod.border_green": "G %s",
   "screen.snipaste_mc_mod.border_blue": "B %s",
   "screen.snipaste_mc_mod.pick_title": "Choose Image",
-  "screen.snipaste_mc_mod.pick_hint": "Click to choose the next paste, Space to preview",
+  "screen.snipaste_mc_mod.pick_hint": "Click to choose the next paste, double-click to paste now, Space to preview",
   "screen.snipaste_mc_mod.open_folder": "Open Folder",
   "screen.snipaste_mc_mod.refresh": "Refresh",
-  "screen.snipaste_mc_mod.preview_hint": "Space or Esc to go back",
-  "message.snipaste_mc_mod.open_failed": "Couldn't open the folder"
+  "screen.snipaste_mc_mod.preview_hint": "Double-click the image to paste, Space or Esc to go back",
+  "message.snipaste_mc_mod.open_failed": "Couldn't open the folder",
+  "message.snipaste_mc_mod.delete_failed": "Couldn't delete the image"
 }

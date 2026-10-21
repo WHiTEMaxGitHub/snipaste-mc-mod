@@ -37,7 +37,7 @@
   "screen.snipaste_mc_mod.folder_label": "文件夹上限",
   "screen.snipaste_mc_mod.border_color": "边框颜色",
   "screen.snipaste_mc_mod.opacity_tip": "新贴图使用的透明度，按百分比。范围 5 到 100。",
-  "screen.snipaste_mc_mod.folder_tip": "游戏目录里 snipaste 文件夹的大小上限，单位 MB。超出后从最旧的截图开始删除。范围 1 到 4096。",
+  "screen.snipaste_mc_mod.folder_tip": "游戏目录里 snipaste 文件夹的大小上限，单位 MB。大于这个值时，从最早放进来的图片开始删除。填 0 则永不删除。范围 0 到 1024。",
   "screen.snipaste_mc_mod.selected_opacity": "选中透明度 %s%%",
   "screen.snipaste_mc_mod.no_selection": "未选中浮层",
   "screen.snipaste_mc_mod.delete": "删除选中",
@@ -74,9 +74,10 @@
   "screen.snipaste_mc_mod.border_green": "绿 %s",
   "screen.snipaste_mc_mod.border_blue": "蓝 %s",
   "screen.snipaste_mc_mod.pick_title": "选择图片",
-  "screen.snipaste_mc_mod.pick_hint": "单击选中下一次贴图，空格预览",
+  "screen.snipaste_mc_mod.pick_hint": "单击选中下一次贴图，双击直接贴上，空格预览",
   "screen.snipaste_mc_mod.open_folder": "打开文件夹",
   "screen.snipaste_mc_mod.refresh": "刷新",
-  "screen.snipaste_mc_mod.preview_hint": "空格或 Esc 返回",
-  "message.snipaste_mc_mod.open_failed": "没能打开文件夹"
+  "screen.snipaste_mc_mod.preview_hint": "双击图片贴上，空格或 Esc 返回",
+  "message.snipaste_mc_mod.open_failed": "没能打开文件夹",
+  "message.snipaste_mc_mod.delete_failed": "没能删除图片"
 }

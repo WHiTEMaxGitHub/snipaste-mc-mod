@@ -37,8 +37,8 @@ public final class SnipasteConfig
                 .comment("新贴的图片使用的透明度，范围 0.05 到 1。")
                 .defineInRange("defaultOpacity", 1.0D, 0.05D, 1.0D);
         MAX_FOLDER_MEGABYTES = builder
-                .comment("游戏目录 snipaste 文件夹的大小上限，单位 MB。超出后从最旧的图片开始删除。")
-                .defineInRange("maxFolderMegabytes", 64, 1, 4096);
+                .comment("游戏目录 snipaste 文件夹的大小上限，单位 MB。大于该值时从最早放入的图片开始删除。0 表示永不删除。")
+                .defineInRange("maxFolderMegabytes", 64, 0, 1024);
         BORDER_ENABLED = builder
                 .comment("是否在浮层四周绘制边框。")
                 .define("borderEnabled", true);
@@ -130,7 +130,7 @@ public final class SnipasteConfig
 
     public static void addMaxFolderMegabytes(int delta)
     {
-        int next = Math.max(1, Math.min(4096, maxFolderMegabytes() + delta));
+        int next = Math.max(0, Math.min(1024, maxFolderMegabytes() + delta));
         if (next == maxFolderMegabytes())
         {
             return;

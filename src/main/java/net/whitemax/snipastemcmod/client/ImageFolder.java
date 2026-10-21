@@ -13,6 +13,7 @@ import java.io.OutputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -131,6 +132,46 @@ public final class ImageFolder
         return images;
     }
 
+    public static void enforceLimit()
+    {
+        try
+        {
+            trim(directory());
+        }
+        catch (IOException exception)
+        {
+            LOGGER.warn("Failed to trim the snipaste folder", exception);
+        }
+    }
+
+    public static boolean delete(Path path)
+    {
+        if (path == null)
+        {
+            return false;
+        }
+        try
+        {
+            Path directory = directory().toAbsolutePath().normalize();
+            Path target = path.toAbsolutePath().normalize();
+            if (!target.startsWith(directory) || !Files.isRegularFile(target))
+            {
+                return false;
+            }
+            Files.deleteIfExists(target);
+            if (chosen != null && chosen.toAbsolutePath().normalize().equals(target))
+            {
+                chosen = null;
+            }
+            return true;
+        }
+        catch (IOException exception)
+        {
+            LOGGER.warn("Failed to delete an image from the snipaste folder", exception);
+            return false;
+        }
+    }
+
     public static boolean openFolder()
     {
         try
@@ -159,7 +200,22 @@ public final class ImageFolder
 
     private static void trim(Path directory) throws IOException
     {
-        List<StoredImage> images = list(directory);
+        if (SnipasteConfig.maxFolderMegabytes() <= 0 || !Files.isDirectory(directory))
+        {
+            return;
+        }
+        List<StoredImage> images = new ArrayList<>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory))
+        {
+            for (Path path : stream)
+            {
+                if (!Files.isRegularFile(path) || !isImage(path))
+                {
+                    continue;
+                }
+                images.add(new StoredImage(path, entered(path), Files.size(path)));
+            }
+        }
         images.sort(Comparator.comparingLong(StoredImage::modified));
         long total = 0L;
         for (StoredImage image : images)
@@ -172,29 +228,33 @@ public final class ImageFolder
         {
             StoredImage oldest = images.get(index++);
             Files.deleteIfExists(oldest.path);
+            if (chosen != null && chosen.toAbsolutePath().normalize().equals(oldest.path.toAbsolutePath().normalize()))
+            {
+                chosen = null;
+            }
             total -= oldest.size;
         }
     }
 
-    private static List<StoredImage> list(Path directory) throws IOException
+    private static long entered(Path path) throws IOException
     {
-        List<StoredImage> images = new ArrayList<>();
-        if (!Files.isDirectory(directory))
+        String name = path.getFileName().toString();
+        if (name.startsWith(PREFIX) && name.toLowerCase(Locale.ROOT).endsWith(".png"))
         {
-            return images;
-        }
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory, PREFIX + "*.png"))
-        {
-            for (Path path : stream)
+            String body = name.substring(PREFIX.length(), name.length() - 4);
+            int dash = body.indexOf('-');
+            String digits = dash >= 0 ? body.substring(0, dash) : body;
+            try
             {
-                if (!Files.isRegularFile(path))
-                {
-                    continue;
-                }
-                images.add(new StoredImage(path, Files.getLastModifiedTime(path).toMillis(), Files.size(path)));
+                return Long.parseLong(digits);
+            }
+            catch (NumberFormatException ignored)
+            {
             }
         }
-        return images;
+        BasicFileAttributes attributes = Files.readAttributes(path, BasicFileAttributes.class);
+        long created = attributes.creationTime().toMillis();
+        return created > 0L ? created : attributes.lastModifiedTime().toMillis();
     }
 
     public record StoredImage(Path path, long modified, long size)
