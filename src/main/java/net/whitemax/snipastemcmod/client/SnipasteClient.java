@@ -26,6 +26,8 @@ public final class SnipasteClient
     private static boolean pendingSnip;
     private static NativeImage capturedFrame;
     private static boolean hideLatched;
+    private static boolean clipLatched;
+    private static boolean chordsReady;
 
     private SnipasteClient()
     {
@@ -73,11 +75,19 @@ public final class SnipasteClient
             }
         }
 
+        if (!chordsReady)
+        {
+            chordsReady = true;
+            SnipasteConfig.keepClipboardChord();
+        }
         boolean listening = minecraft.screen instanceof SnipasteKeybindsScreen keys && keys.isListening();
         boolean snip = SnipasteKeybinds.SNIP_CHORD.consume();
         boolean paste = SnipasteKeybinds.PASTE_CHORD.consume();
         boolean edit = SnipasteKeybinds.EDIT_CHORD.consume();
         boolean hide = SnipasteKeybinds.HIDE_CHORD.poll();
+        boolean clipDown = SnipasteKeybinds.CLIP_CHORD.poll();
+        boolean clip = clipDown && !clipLatched;
+        clipLatched = clipDown;
         if (!hide)
         {
             hideLatched = false;
@@ -100,6 +110,10 @@ public final class SnipasteClient
             if (SnipasteKeybinds.HIDE_CHORD.same(SnipasteKeybinds.EDIT_CHORD))
             {
                 edit = false;
+            }
+            if (SnipasteKeybinds.HIDE_CHORD.same(SnipasteKeybinds.CLIP_CHORD))
+            {
+                clip = false;
             }
         }
         Screen screen = minecraft.screen;
@@ -125,6 +139,10 @@ public final class SnipasteClient
             {
                 stillOpen.selectLast();
             }
+            if (clip && minecraft.screen instanceof StickyEditScreen stillOpen && StickyBoard.get().pasteClipboard())
+            {
+                stillOpen.selectLast();
+            }
             return;
         }
         if (screen != null)
@@ -134,6 +152,10 @@ public final class SnipasteClient
         if (paste)
         {
             StickyBoard.get().pasteLatest();
+        }
+        if (clip)
+        {
+            StickyBoard.get().pasteClipboard();
         }
         if (edit)
         {
@@ -253,6 +275,7 @@ public final class SnipasteClient
                 || screen instanceof SnipasteKeybindsScreen
                 || screen instanceof SnipasteShadowScreen
                 || screen instanceof SnipasteBorderScreen
+                || screen instanceof SnipasteTextScreen
                 || screen instanceof DeleteImageScreen
                 || screen instanceof RenameImageScreen
                 || screen instanceof ImagePickScreen

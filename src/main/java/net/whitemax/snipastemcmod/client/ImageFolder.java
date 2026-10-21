@@ -10,6 +10,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -62,6 +63,39 @@ public final class ImageFolder
         }
     }
 
+    public static Path saveText(String text)
+    {
+        if (text == null || text.isBlank())
+        {
+            return null;
+        }
+        try
+        {
+            Path directory = directory();
+            Files.createDirectories(directory);
+            Path latest = newest();
+            if (latest != null && isText(latest) && text.equals(readText(latest)))
+            {
+                choose(latest);
+                return latest;
+            }
+            Path file = directory.resolve(PREFIX + System.currentTimeMillis() + ".txt");
+            int suffix = 1;
+            while (Files.exists(file))
+            {
+                file = directory.resolve(PREFIX + System.currentTimeMillis() + "-" + suffix++ + ".txt");
+            }
+            Files.writeString(file, text, StandardCharsets.UTF_8);
+            choose(file);
+            return file;
+        }
+        catch (IOException exception)
+        {
+            LOGGER.warn("Failed to save text into the snipaste folder", exception);
+            return null;
+        }
+    }
+
     public static Path directory()
     {
         return FMLPaths.GAMEDIR.get().resolve("snipaste");
@@ -87,26 +121,31 @@ public final class ImageFolder
         return chosen;
     }
 
-    public static BufferedImage readForPaste() throws IOException
+    public static Path newest() throws IOException
     {
-        if (chosen != null)
+        Path directory = directory();
+        Files.createDirectories(directory);
+        List<StoredImage> files = collect(directory, false, true);
+        if (files.isEmpty())
         {
-            if (!Files.isRegularFile(chosen))
-            {
-                chosen = null;
-            }
-            else
-            {
-                return read(chosen);
-            }
+            return null;
         }
-        return readLatest();
+        files.sort(Comparator.comparingLong(StoredImage::modified).reversed());
+        return files.get(0).path();
     }
 
-    public static BufferedImage readLatest() throws IOException
+    public static String readText(Path path) throws IOException
     {
-        List<StoredImage> images = images();
-        return images.isEmpty() ? null : read(images.get(0).path());
+        if (Files.size(path) > 256L * 1024L)
+        {
+            throw new IOException("Text file is too large: " + path);
+        }
+        return Files.readString(path, StandardCharsets.UTF_8);
+    }
+
+    public static boolean isText(Path path)
+    {
+        return path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".txt");
     }
 
     public static BufferedImage read(Path path) throws IOException
@@ -126,7 +165,7 @@ public final class ImageFolder
     {
         Path directory = directory();
         Files.createDirectories(directory);
-        List<StoredImage> images = collect(directory, false);
+        List<StoredImage> images = collect(directory, false, false);
         images.sort(Comparator.comparingLong(StoredImage::modified).reversed());
         return images;
     }
@@ -154,7 +193,7 @@ public final class ImageFolder
                     folders.add(new Entry(path, true, Files.getLastModifiedTime(path).toMillis()));
                     continue;
                 }
-                if (Files.isRegularFile(path) && isImage(path))
+                if (Files.isRegularFile(path) && (isImage(path) || isText(path)))
                 {
                     images.add(new Entry(path, false, Files.getLastModifiedTime(path).toMillis()));
                 }
@@ -379,14 +418,14 @@ public final class ImageFolder
         }
     }
 
-    private static List<StoredImage> collect(Path root, boolean byEntered) throws IOException
+    private static List<StoredImage> collect(Path root, boolean byEntered, boolean includeText) throws IOException
     {
         List<StoredImage> images = new ArrayList<>();
-        walk(root, images, byEntered, 0);
+        walk(root, images, byEntered, includeText, 0);
         return images;
     }
 
-    private static void walk(Path directory, List<StoredImage> images, boolean byEntered, int depth) throws IOException
+    private static void walk(Path directory, List<StoredImage> images, boolean byEntered, boolean includeText, int depth) throws IOException
     {
         if (depth > 32 || !Files.isDirectory(directory))
         {
@@ -402,10 +441,10 @@ public final class ImageFolder
                 }
                 if (Files.isDirectory(path))
                 {
-                    walk(path, images, byEntered, depth + 1);
+                    walk(path, images, byEntered, includeText, depth + 1);
                     continue;
                 }
-                if (!Files.isRegularFile(path) || !isImage(path))
+                if (!Files.isRegularFile(path) || !(isImage(path) || (includeText && isText(path))))
                 {
                     continue;
                 }
@@ -431,7 +470,7 @@ public final class ImageFolder
         {
             return;
         }
-        List<StoredImage> images = collect(directory, true);
+        List<StoredImage> images = collect(directory, true, false);
         images.sort(Comparator.comparingLong(StoredImage::modified));
         long total = 0L;
         for (StoredImage image : images)

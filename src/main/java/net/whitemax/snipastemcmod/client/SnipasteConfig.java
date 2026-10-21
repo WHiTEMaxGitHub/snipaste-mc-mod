@@ -24,6 +24,16 @@ public final class SnipasteConfig
     public static final ForgeConfigSpec.IntValue EDIT_MODIFIERS;
     public static final ForgeConfigSpec.ConfigValue<String> HIDE_KEY;
     public static final ForgeConfigSpec.IntValue HIDE_MODIFIERS;
+    public static final ForgeConfigSpec.ConfigValue<String> CLIP_KEY;
+    public static final ForgeConfigSpec.IntValue CLIP_MODIFIERS;
+    public static final ForgeConfigSpec.ConfigValue<String> CHORD_REVISION;
+    public static final ForgeConfigSpec.IntValue TEXT_RED;
+    public static final ForgeConfigSpec.IntValue TEXT_GREEN;
+    public static final ForgeConfigSpec.IntValue TEXT_BLUE;
+    public static final ForgeConfigSpec.BooleanValue TEXT_BACKGROUND;
+    public static final ForgeConfigSpec.IntValue TEXT_BG_RED;
+    public static final ForgeConfigSpec.IntValue TEXT_BG_GREEN;
+    public static final ForgeConfigSpec.IntValue TEXT_BG_BLUE;
     public static final int MODIFIER_MASK = GLFW.GLFW_MOD_SHIFT | GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_ALT;
     public static final ForgeConfigSpec.BooleanValue SHADOW_ENABLED;
     public static final ForgeConfigSpec.DoubleValue SHADOW_OPACITY;
@@ -34,7 +44,8 @@ public final class SnipasteConfig
     public static final ForgeConfigSpec.IntValue SHADOW_RED;
     public static final ForgeConfigSpec.IntValue SHADOW_GREEN;
     public static final ForgeConfigSpec.IntValue SHADOW_BLUE;
-    public static final String DEFAULT_HIDE_KEY = "key.keyboard.f7";
+    public static final String DEFAULT_HIDE_KEY = "key.keyboard.f9";
+    public static final String DEFAULT_CLIP_KEY = "key.keyboard.f7";
     public static final ForgeConfigSpec.ConfigValue<String> SKIP_DELETE_CONFIRM;
 
     static
@@ -75,7 +86,19 @@ public final class SnipasteConfig
         EDIT_KEY = chordKey(builder, "editKey", "编辑快捷键，使用原版按键名。", "key.keyboard.f8");
         EDIT_MODIFIERS = chordModifiers(builder, "editModifiers", 0);
         HIDE_KEY = chordKey(builder, "hideKey", "清屏快捷键，使用原版按键名。", DEFAULT_HIDE_KEY);
-        HIDE_MODIFIERS = chordModifiers(builder, "hideModifiers", GLFW.GLFW_MOD_SHIFT);
+        HIDE_MODIFIERS = chordModifiers(builder, "hideModifiers", 0);
+        CLIP_KEY = chordKey(builder, "clipKey", "读取文字剪贴板的快捷键，使用原版按键名。", DEFAULT_CLIP_KEY);
+        CLIP_MODIFIERS = chordModifiers(builder, "clipModifiers", GLFW.GLFW_MOD_SHIFT);
+        CHORD_REVISION = builder.comment("按键默认值迁移标记。有内容后不再改动已保存的清屏按键。").define("chordRevision", "");
+        builder.comment("文字贴图").push("text");
+        TEXT_RED = builder.comment("文字红色分量，0 到 255。").defineInRange("red", 255, 0, 255);
+        TEXT_GREEN = builder.comment("文字绿色分量，0 到 255。").defineInRange("green", 255, 0, 255);
+        TEXT_BLUE = builder.comment("文字蓝色分量，0 到 255。").defineInRange("blue", 255, 0, 255);
+        TEXT_BACKGROUND = builder.comment("是否绘制文字背景。").define("background", true);
+        TEXT_BG_RED = builder.comment("背景红色分量，0 到 255。").defineInRange("backgroundRed", 24, 0, 255);
+        TEXT_BG_GREEN = builder.comment("背景绿色分量，0 到 255。").defineInRange("backgroundGreen", 24, 0, 255);
+        TEXT_BG_BLUE = builder.comment("背景蓝色分量，0 到 255。").defineInRange("backgroundBlue", 24, 0, 255);
+        builder.pop();
         SKIP_DELETE_CONFIRM = builder
                 .comment("勾选不再提示后记下的模组版本和存档。对不上就还会再问一次。")
                 .define("skipDeleteConfirm", "");
@@ -209,6 +232,95 @@ public final class SnipasteConfig
         return (borderRed() << 16) | (borderGreen() << 8) | borderBlue();
     }
 
+    public static int textRed()
+    {
+        return TEXT_RED.get();
+    }
+
+    public static int textGreen()
+    {
+        return TEXT_GREEN.get();
+    }
+
+    public static int textBlue()
+    {
+        return TEXT_BLUE.get();
+    }
+
+    public static int textRgb()
+    {
+        return (textRed() << 16) | (textGreen() << 8) | textBlue();
+    }
+
+    public static boolean textBackground()
+    {
+        return TEXT_BACKGROUND.get();
+    }
+
+    public static void setTextBackground(boolean enabled)
+    {
+        if (TEXT_BACKGROUND.get() == enabled)
+        {
+            return;
+        }
+        TEXT_BACKGROUND.set(enabled);
+    }
+
+    public static int textBackgroundRed()
+    {
+        return TEXT_BG_RED.get();
+    }
+
+    public static int textBackgroundGreen()
+    {
+        return TEXT_BG_GREEN.get();
+    }
+
+    public static int textBackgroundBlue()
+    {
+        return TEXT_BG_BLUE.get();
+    }
+
+    public static int textBackgroundRgb()
+    {
+        return (textBackgroundRed() << 16) | (textBackgroundGreen() << 8) | textBackgroundBlue();
+    }
+
+    public static int textChannel(boolean background, int channel)
+    {
+        if (background)
+        {
+            return switch (channel)
+            {
+                case 0 -> textBackgroundRed();
+                case 1 -> textBackgroundGreen();
+                default -> textBackgroundBlue();
+            };
+        }
+        return switch (channel)
+        {
+            case 0 -> textRed();
+            case 1 -> textGreen();
+            default -> textBlue();
+        };
+    }
+
+    public static void setTextChannel(boolean background, int channel, int value)
+    {
+        ForgeConfigSpec.IntValue target = background ? switch (channel)
+        {
+            case 0 -> TEXT_BG_RED;
+            case 1 -> TEXT_BG_GREEN;
+            default -> TEXT_BG_BLUE;
+        } : switch (channel)
+        {
+            case 0 -> TEXT_RED;
+            case 1 -> TEXT_GREEN;
+            default -> TEXT_BLUE;
+        };
+        setInt(target, value, 0, 255);
+    }
+
     public static void setBorderChannel(int channel, int value)
     {
         ForgeConfigSpec.IntValue target = switch (channel)
@@ -244,6 +356,23 @@ public final class SnipasteConfig
         {
             return InputConstants.UNKNOWN;
         }
+    }
+
+    public static void keepClipboardChord()
+    {
+        if ("2".equals(CHORD_REVISION.get()))
+        {
+            return;
+        }
+        InputConstants.Key hide = chordKey(HIDE_KEY);
+        boolean oldDefault = HIDE_MODIFIERS.get() == GLFW.GLFW_MOD_SHIFT
+                && ("key.keyboard.f7".equals(hide.getName()) || "key.keyboard.f8".equals(hide.getName()));
+        if (oldDefault)
+        {
+            setChord(HIDE_KEY, HIDE_MODIFIERS, InputConstants.getKey(DEFAULT_HIDE_KEY), 0);
+        }
+        CHORD_REVISION.set("2");
+        SPEC.save();
     }
 
     public static void setChord(ForgeConfigSpec.ConfigValue<String> key, ForgeConfigSpec.IntValue modifiers, InputConstants.Key pressed, int mask)

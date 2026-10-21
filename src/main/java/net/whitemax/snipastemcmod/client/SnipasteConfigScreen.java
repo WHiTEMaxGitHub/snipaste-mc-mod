@@ -70,6 +70,13 @@ public class SnipasteConfigScreen extends Screen
                 })
                 .bounds(right, y, 150, 20)
                 .build());
+        y += ROW;
+        addRenderableWidget(Button.builder(Component.translatable("screen.snipaste_mc_mod.text_page"), button -> {
+                    commitAll();
+                    this.minecraft.setScreen(new SnipasteTextScreen(this));
+                })
+                .bounds(left, y, 150, 20)
+                .build());
         addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> onClose())
                 .bounds(this.width / 2 - 100, this.height - 27, 200, 20)
                 .build());

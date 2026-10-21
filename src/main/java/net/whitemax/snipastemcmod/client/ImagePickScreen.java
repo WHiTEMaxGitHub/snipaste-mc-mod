@@ -89,8 +89,7 @@ public class ImagePickScreen extends Screen
 
     private void pasteAndReturn(Path path)
     {
-        ImageFolder.choose(path);
-        if (!StickyBoard.get().pasteLatest())
+        if (!StickyBoard.get().pasteFile(path))
         {
             return;
         }
@@ -200,6 +199,10 @@ public class ImagePickScreen extends Screen
                 {
                     enter(row.path());
                 }
+                else if (row.isText())
+                {
+                    pasteAndReturn(row.path());
+                }
                 else
                 {
                     this.minecraft.setScreen(new ImagePreviewScreen(this, row.path()));
@@ -245,6 +248,15 @@ public class ImagePickScreen extends Screen
         graphics.fill(x + 1, y + 2, x + 11, y + 5, 0xFFF6D36A);
     }
 
+    private static void drawText(GuiGraphics graphics, int x, int y)
+    {
+        graphics.fill(x, y, x + 22, y + 26, 0xFF3A3A3A);
+        graphics.fill(x + 1, y + 1, x + 21, y + 25, 0xFFE8E8E8);
+        graphics.fill(x + 4, y + 6, x + 18, y + 8, 0xFF888888);
+        graphics.fill(x + 4, y + 11, x + 18, y + 13, 0xFF888888);
+        graphics.fill(x + 4, y + 16, x + 14, y + 18, 0xFF888888);
+    }
+
     private static BufferedImage thumbnail(BufferedImage source)
     {
         int max = 64;
@@ -288,7 +300,9 @@ public class ImagePickScreen extends Screen
             {
                 for (ImageFolder.Entry entry : ImageFolder.children(this.screen.folder()))
                 {
-                    Row row = entry.directory() ? Row.folder(this, entry.path()) : Row.load(this, entry.path());
+                    Row row = entry.directory()
+                            ? Row.folder(this, entry.path())
+                            : ImageFolder.isText(entry.path()) ? Row.text(this, entry.path()) : Row.load(this, entry.path());
                     if (row == null)
                     {
                         continue;
@@ -325,6 +339,8 @@ public class ImagePickScreen extends Screen
             private final ImageList list;
             private final Path path;
             private final boolean directory;
+            private final boolean text;
+            private final String snippet;
             private final DynamicTexture texture;
             private final ResourceLocation location;
             private final int sourceWidth;
@@ -334,11 +350,13 @@ public class ImagePickScreen extends Screen
             private boolean released;
             private long lastClickAt;
 
-            private Row(ImageList list, Path path, boolean directory, DynamicTexture texture, ResourceLocation location, int sourceWidth, int sourceHeight, int fullWidth, int fullHeight)
+            private Row(ImageList list, Path path, boolean directory, boolean text, String snippet, DynamicTexture texture, ResourceLocation location, int sourceWidth, int sourceHeight, int fullWidth, int fullHeight)
             {
                 this.list = list;
                 this.path = path;
                 this.directory = directory;
+                this.text = text;
+                this.snippet = snippet;
                 this.texture = texture;
                 this.location = location;
                 this.sourceWidth = sourceWidth;
@@ -349,7 +367,23 @@ public class ImagePickScreen extends Screen
 
             private static Row folder(ImageList list, Path path)
             {
-                return new Row(list, path, true, null, null, 0, 0, 0, 0);
+                return new Row(list, path, true, false, "", null, null, 0, 0, 0, 0);
+            }
+
+            private static Row text(ImageList list, Path path)
+            {
+                String snippet = "";
+                try
+                {
+                    String raw = ImageFolder.readText(path);
+                    int line = raw.indexOf('\n');
+                    snippet = (line >= 0 ? raw.substring(0, line) : raw).trim();
+                }
+                catch (IOException exception)
+                {
+                    snippet = "";
+                }
+                return new Row(list, path, false, true, snippet, null, null, 0, 0, 0, 0);
             }
 
             private static Row load(ImageList list, Path path)
@@ -363,7 +397,7 @@ public class ImagePickScreen extends Screen
                     ResourceLocation location = Minecraft.getInstance().getTextureManager().register(
                             SnipasteMcMod.MOD_ID + "/pick/" + list.nextId++,
                             texture);
-                    return new Row(list, path, false, texture, location, nativeImage.getWidth(), nativeImage.getHeight(), full.getWidth(), full.getHeight());
+                    return new Row(list, path, false, false, "", texture, location, nativeImage.getWidth(), nativeImage.getHeight(), full.getWidth(), full.getHeight());
                 }
                 catch (IOException | RuntimeException exception)
                 {
@@ -374,6 +408,11 @@ public class ImagePickScreen extends Screen
             private boolean isDirectory()
             {
                 return this.directory;
+            }
+
+            private boolean isText()
+            {
+                return this.text;
             }
 
             private Path path()
@@ -412,6 +451,15 @@ public class ImagePickScreen extends Screen
                 {
                     drawFolder(graphics, left + 6, top + (height - 22) / 2);
                     graphics.drawString(minecraft.font, name, left + 44, top + (height - 8) / 2, 0xFFFFFF, false);
+                    return;
+                }
+                if (this.text)
+                {
+                    drawText(graphics, left + 6, top + (height - 26) / 2);
+                    int color = ImageFolder.chosen() != null && ImageFolder.chosen().equals(this.path) ? 0xFFFF55 : 0xFFFFFF;
+                    graphics.drawString(minecraft.font, name, left + 44, top + 8, color, false);
+                    String line = minecraft.font.plainSubstrByWidth(this.snippet, width - 48);
+                    graphics.drawString(minecraft.font, line, left + 44, top + 20, 0xA0A0A0, false);
                     return;
                 }
                 int box = 32;

@@ -10,6 +10,7 @@ import net.whitemax.snipastemcmod.SnipasteMcMod;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -61,24 +62,79 @@ public final class StickyBoard
         return images.get(index);
     }
 
+    public boolean pasteClipboard()
+    {
+        String clip = TextStickers.clipboard();
+        if (clip == null)
+        {
+            SnipasteClient.tell(Component.translatable("message.snipaste_mc_mod.no_text"));
+            return false;
+        }
+        Path saved = ImageFolder.saveText(clip);
+        if (saved == null)
+        {
+            SnipasteClient.tell(Component.translatable("message.snipaste_mc_mod.text_failed"));
+            return false;
+        }
+        return pasteFile(saved);
+    }
+
     public boolean pasteLatest()
     {
-        BufferedImage buffered;
         try
         {
-            buffered = ImageFolder.readForPaste();
+            Path path = ImageFolder.newest();
+            if (path == null)
+            {
+                SnipasteClient.tell(Component.translatable("message.snipaste_mc_mod.no_image"));
+                return false;
+            }
+            return pasteFile(path);
         }
         catch (IOException exception)
         {
             SnipasteClient.tell(Component.translatable("message.snipaste_mc_mod.read_failed"));
             return false;
         }
-        if (buffered == null)
+    }
+
+    public boolean pasteFile(Path path)
+    {
+        if (path == null)
         {
-            SnipasteClient.tell(Component.translatable("message.snipaste_mc_mod.no_image"));
             return false;
         }
+        ImageFolder.choose(path);
+        try
+        {
+            if (ImageFolder.isText(path))
+            {
+                String text = ImageFolder.readText(path);
+                if (text == null || text.isBlank())
+                {
+                    SnipasteClient.tell(Component.translatable("message.snipaste_mc_mod.no_text"));
+                    return false;
+                }
+                BufferedImage drawn = TextStickers.draw(text);
+                if (drawn == null)
+                {
+                    SnipasteClient.tell(Component.translatable("message.snipaste_mc_mod.text_failed"));
+                    return false;
+                }
+                return place(drawn, false);
+            }
+            BufferedImage buffered = ImageFolder.read(path);
+            return place(buffered, true);
+        }
+        catch (IOException exception)
+        {
+            SnipasteClient.tell(Component.translatable(ImageFolder.isText(path) ? "message.snipaste_mc_mod.text_failed" : "message.snipaste_mc_mod.read_failed"));
+            return false;
+        }
+    }
 
+    private boolean place(BufferedImage buffered, boolean screenshot)
+    {
         NativeImage nativeImage;
         try
         {
@@ -86,7 +142,7 @@ public final class StickyBoard
         }
         catch (RuntimeException exception)
         {
-            SnipasteClient.tell(Component.translatable("message.snipaste_mc_mod.read_failed"));
+            SnipasteClient.tell(Component.translatable(screenshot ? "message.snipaste_mc_mod.read_failed" : "message.snipaste_mc_mod.text_failed"));
             return false;
         }
 
@@ -99,8 +155,12 @@ public final class StickyBoard
         int guiWidth = minecraft.getWindow().getGuiScaledWidth();
         int guiHeight = minecraft.getWindow().getGuiScaledHeight();
         double guiScale = Math.max(1.0D, minecraft.getWindow().getGuiScale());
-        int displayWidth = Math.max(1, (int) Math.round(nativeImage.getWidth() / guiScale * 0.5D));
-        int displayHeight = Math.max(1, (int) Math.round(nativeImage.getHeight() / guiScale * 0.5D));
+        int displayWidth = screenshot
+                ? Math.max(1, (int) Math.round(nativeImage.getWidth() / guiScale * 0.5D))
+                : Math.max(1, nativeImage.getWidth());
+        int displayHeight = screenshot
+                ? Math.max(1, (int) Math.round(nativeImage.getHeight() / guiScale * 0.5D))
+                : Math.max(1, nativeImage.getHeight());
         int maxWidth = Math.max(MIN_SIZE, guiWidth - 16);
         int maxHeight = Math.max(MIN_SIZE, guiHeight - 16);
         if (displayWidth > maxWidth || displayHeight > maxHeight)

@@ -131,8 +131,7 @@ public class ImagePreviewScreen extends Screen
 
     private void pasteDirect()
     {
-        ImageFolder.choose(this.path);
-        if (!StickyBoard.get().pasteLatest())
+        if (!StickyBoard.get().pasteFile(this.path))
         {
             return;
         }
