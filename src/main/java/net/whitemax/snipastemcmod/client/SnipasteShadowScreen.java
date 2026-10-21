@@ -8,6 +8,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 
+import java.util.Locale;
 import java.util.function.IntConsumer;
 
 public class SnipasteShadowScreen extends Screen
@@ -35,8 +36,7 @@ public class SnipasteShadowScreen extends Screen
         y += ROW;
         addRenderableWidget(new IntSlider(left, y, 150, 20, 0, 360, SnipasteConfig.shadowAngle(),
                 "screen.snipaste_mc_mod.shadow_angle", SnipasteConfig::setShadowAngle));
-        addRenderableWidget(new IntSlider(right, y, 150, 20, 0, 64, SnipasteConfig.shadowDistance(),
-                "screen.snipaste_mc_mod.shadow_distance", SnipasteConfig::setShadowDistance));
+        addRenderableWidget(new DistanceSlider(right, y, 150, 20));
         y += ROW;
         addRenderableWidget(new IntSlider(left, y, 150, 20, 0, 48, SnipasteConfig.shadowBlur(),
                 "screen.snipaste_mc_mod.shadow_blur", SnipasteConfig::setShadowBlur));
@@ -90,6 +90,40 @@ public class SnipasteShadowScreen extends Screen
         protected void applyValue()
         {
             SnipasteConfig.setShadowOpacity(this.value);
+        }
+    }
+
+    private static final class DistanceSlider extends AbstractSliderButton
+    {
+        private static final double MAX = 4.0D;
+        private static final int STEPS = 40;
+
+        private DistanceSlider(int x, int y, int width, int height)
+        {
+            super(x, y, width, height, Component.empty(), SnipasteConfig.shadowDistance() / MAX);
+            updateMessage();
+        }
+
+        @Override
+        protected void updateMessage()
+        {
+            setMessage(Component.translatable("screen.snipaste_mc_mod.shadow_distance", format(current())));
+        }
+
+        @Override
+        protected void applyValue()
+        {
+            SnipasteConfig.setShadowDistance(current());
+        }
+
+        private double current()
+        {
+            return Math.round(this.value * STEPS) / 10.0D;
+        }
+
+        private static String format(double value)
+        {
+            return String.format(Locale.ROOT, "%.1f", value);
         }
     }
 

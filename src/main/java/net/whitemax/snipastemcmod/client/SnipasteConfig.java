@@ -21,7 +21,7 @@ public final class SnipasteConfig
     public static final ForgeConfigSpec.BooleanValue SHADOW_ENABLED;
     public static final ForgeConfigSpec.DoubleValue SHADOW_OPACITY;
     public static final ForgeConfigSpec.IntValue SHADOW_ANGLE;
-    public static final ForgeConfigSpec.IntValue SHADOW_DISTANCE;
+    public static final ForgeConfigSpec.DoubleValue SHADOW_DISTANCE;
     public static final ForgeConfigSpec.IntValue SHADOW_BLUR;
     public static final ForgeConfigSpec.IntValue SHADOW_SPREAD;
     public static final ForgeConfigSpec.IntValue SHADOW_RED;
@@ -81,8 +81,8 @@ public final class SnipasteConfig
                 .comment("光源角度。0 向右，90 向上，阴影落在反方向。")
                 .defineInRange("angle", 135, 0, 360);
         SHADOW_DISTANCE = builder
-                .comment("阴影与图像的距离，单位是界面像素。")
-                .defineInRange("distance", 4, 0, 64);
+                .comment("阴影与图像的距离，范围 0 到 4，可以到小数点后一位。")
+                .defineInRange("distance", 4.0D, 0.0D, 4.0D);
         SHADOW_BLUR = builder
                 .comment("阴影模糊半径，单位是界面像素。")
                 .defineInRange("blur", 8, 0, 48);
@@ -330,14 +330,19 @@ public final class SnipasteConfig
         SHADOW_ANGLE.set(clamped);
     }
 
-    public static int shadowDistance()
+    public static double shadowDistance()
     {
-        return SHADOW_DISTANCE.get();
+        return Math.max(0.0D, Math.min(4.0D, SHADOW_DISTANCE.get()));
     }
 
-    public static void setShadowDistance(int distance)
+    public static void setShadowDistance(double distance)
     {
-        setInt(SHADOW_DISTANCE, distance, 0, 64);
+        double clamped = Math.round(Math.max(0.0D, Math.min(4.0D, distance)) * 10.0D) / 10.0D;
+        if (Math.abs(SHADOW_DISTANCE.get() - clamped) < 0.001D)
+        {
+            return;
+        }
+        SHADOW_DISTANCE.set(clamped);
     }
 
     public static int shadowBlur()
