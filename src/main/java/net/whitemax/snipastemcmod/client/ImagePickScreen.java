@@ -25,6 +25,10 @@ public class ImagePickScreen extends Screen
     private final Screen parent;
     private ImageList list;
     private Button deleteButton;
+    private Button renameButton;
+    private Button backButton;
+    private Path folder;
+    private Path highlight;
 
     public ImagePickScreen(Screen parent)
     {
@@ -42,25 +46,32 @@ public class ImagePickScreen extends Screen
         this.list = new ImageList(this, this.minecraft, this.width, this.height);
         this.addWidget(this.list);
         this.list.reload();
+        this.backButton = addRenderableWidget(Button.builder(CommonComponents.GUI_BACK, button -> back())
+                .bounds(8, 4, 56, 20)
+                .build());
         int y = this.height - 28;
         int x = this.width / 2 - 158;
         addRenderableWidget(Button.builder(Component.translatable("screen.snipaste_mc_mod.open_folder"), button -> {
-            if (!ImageFolder.openFolder())
+            if (!ImageFolder.open(folder()))
             {
                 SnipasteClient.tell(Component.translatable("message.snipaste_mc_mod.open_failed"));
             }
-        }).bounds(x, y, 100, 20).build());
-        x += 104;
+        }).bounds(x, y, 88, 20).build());
+        x += 92;
         addRenderableWidget(Button.builder(Component.translatable("screen.snipaste_mc_mod.refresh"), button -> this.list.reload())
-                .bounds(x, y, 68, 20)
+                .bounds(x, y, 50, 20)
                 .build());
-        x += 72;
+        x += 54;
+        this.renameButton = addRenderableWidget(Button.builder(Component.translatable("screen.snipaste_mc_mod.rename"), button -> renameSelected())
+                .bounds(x, y, 62, 20)
+                .build());
+        x += 66;
         this.deleteButton = addRenderableWidget(Button.builder(Component.translatable("screen.snipaste_mc_mod.delete_short"), button -> deleteSelected())
-                .bounds(x, y, 68, 20)
+                .bounds(x, y, 50, 20)
                 .build());
-        x += 72;
+        x += 54;
         addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> onClose())
-                .bounds(x, y, 68, 20)
+                .bounds(x, y, 50, 20)
                 .build());
         this.setFocused(this.list);
     }
@@ -90,7 +101,50 @@ public class ImagePickScreen extends Screen
         this.minecraft.setScreen(this.parent);
     }
 
-    private void deleteSelected()
+    private Path folder()
+    {
+        if (this.folder == null)
+        {
+            this.folder = ImageFolder.directory();
+        }
+        return this.folder;
+    }
+
+    private boolean atRoot()
+    {
+        return folder().toAbsolutePath().normalize().equals(ImageFolder.directory().toAbsolutePath().normalize());
+    }
+
+    private void enter(Path path)
+    {
+        this.folder = path;
+        if (this.list != null)
+        {
+            this.list.reload();
+        }
+    }
+
+    private void back()
+    {
+        Path parent = folder().toAbsolutePath().normalize().getParent();
+        Path root = ImageFolder.directory().toAbsolutePath().normalize();
+        if (parent == null || !parent.startsWith(root))
+        {
+            return;
+        }
+        this.folder = parent;
+        if (this.list != null)
+        {
+            this.list.reload();
+        }
+    }
+
+    void highlight(Path path)
+    {
+        this.highlight = path;
+    }
+
+    private void renameSelected()
     {
         if (this.list == null)
         {
@@ -101,12 +155,21 @@ public class ImagePickScreen extends Screen
         {
             return;
         }
-        if (!ImageFolder.delete(row.path()))
+        this.minecraft.setScreen(new RenameImageScreen(this, row.path()));
+    }
+
+    private void deleteSelected()
+    {
+        if (this.list == null)
         {
-            SnipasteClient.tell(Component.translatable("message.snipaste_mc_mod.delete_failed"));
             return;
         }
-        this.list.reload();
+        ImageList.Row row = this.list.getSelected();
+        if (row == null || row.isDirectory())
+        {
+            return;
+        }
+        DeleteImageScreen.ask(this, row.path());
     }
 
     @Override
@@ -134,7 +197,14 @@ public class ImagePickScreen extends Screen
             ImageList.Row row = this.list.getSelected();
             if (row != null)
             {
-                this.minecraft.setScreen(new ImagePreviewScreen(this, row.path()));
+                if (row.isDirectory())
+                {
+                    enter(row.path());
+                }
+                else
+                {
+                    this.minecraft.setScreen(new ImagePreviewScreen(this, row.path()));
+                }
             }
             return true;
         }
@@ -149,13 +219,31 @@ public class ImagePickScreen extends Screen
         {
             this.list.render(graphics, mouseX, mouseY, partialTick);
         }
+        if (this.backButton != null)
+        {
+            this.backButton.visible = !atRoot();
+        }
+        ImageList.Row selected = this.list == null ? null : this.list.getSelected();
+        if (this.renameButton != null)
+        {
+            this.renameButton.active = selected != null;
+        }
         if (this.deleteButton != null)
         {
-            this.deleteButton.active = this.list != null && this.list.getSelected() != null;
+            this.deleteButton.active = selected != null && !selected.isDirectory();
         }
-        graphics.drawCenteredString(this.font, this.title, this.width / 2, 8, 0xFFFFFF);
+        Component heading = atRoot() ? this.title : Component.literal(folder().getFileName().toString());
+        graphics.drawCenteredString(this.font, heading, this.width / 2, 8, 0xFFFFFF);
         graphics.drawCenteredString(this.font, Component.translatable("screen.snipaste_mc_mod.pick_hint"), this.width / 2, this.height - 44, 0xA0A0A0);
         super.render(graphics, mouseX, mouseY, partialTick);
+    }
+
+    private static void drawFolder(GuiGraphics graphics, int x, int y)
+    {
+        graphics.fill(x, y + 1, x + 12, y + 6, 0xFFC8962E);
+        graphics.fill(x, y + 5, x + 26, y + 20, 0xFFC08020);
+        graphics.fill(x + 1, y + 6, x + 25, y + 19, 0xFFF0C14A);
+        graphics.fill(x + 1, y + 2, x + 11, y + 5, 0xFFF6D36A);
     }
 
     private static BufferedImage thumbnail(BufferedImage source)
@@ -194,19 +282,20 @@ public class ImagePickScreen extends Screen
         private void reload()
         {
             close();
-            Path chosen = ImageFolder.chosen();
+            Path chosen = this.screen.highlight != null ? this.screen.highlight : ImageFolder.chosen();
+            this.screen.highlight = null;
             Row selected = null;
             try
             {
-                for (ImageFolder.StoredImage image : ImageFolder.images())
+                for (ImageFolder.Entry entry : ImageFolder.children(this.screen.folder()))
                 {
-                    Row row = Row.load(this, image);
+                    Row row = entry.directory() ? Row.folder(this, entry.path()) : Row.load(this, entry.path());
                     if (row == null)
                     {
                         continue;
                     }
                     addEntry(row);
-                    if (chosen != null && chosen.equals(image.path()))
+                    if (chosen != null && chosen.equals(entry.path()))
                     {
                         selected = row;
                     }
@@ -236,6 +325,7 @@ public class ImagePickScreen extends Screen
         {
             private final ImageList list;
             private final Path path;
+            private final boolean directory;
             private final DynamicTexture texture;
             private final ResourceLocation location;
             private final int sourceWidth;
@@ -245,10 +335,11 @@ public class ImagePickScreen extends Screen
             private boolean released;
             private long lastClickAt;
 
-            private Row(ImageList list, Path path, DynamicTexture texture, ResourceLocation location, int sourceWidth, int sourceHeight, int fullWidth, int fullHeight)
+            private Row(ImageList list, Path path, boolean directory, DynamicTexture texture, ResourceLocation location, int sourceWidth, int sourceHeight, int fullWidth, int fullHeight)
             {
                 this.list = list;
                 this.path = path;
+                this.directory = directory;
                 this.texture = texture;
                 this.location = location;
                 this.sourceWidth = sourceWidth;
@@ -257,23 +348,33 @@ public class ImagePickScreen extends Screen
                 this.fullHeight = fullHeight;
             }
 
-            private static Row load(ImageList list, ImageFolder.StoredImage image)
+            private static Row folder(ImageList list, Path path)
+            {
+                return new Row(list, path, true, null, null, 0, 0, 0, 0);
+            }
+
+            private static Row load(ImageList list, Path path)
             {
                 try
                 {
-                    BufferedImage full = ImageFolder.read(image.path());
+                    BufferedImage full = ImageFolder.read(path);
                     BufferedImage thumb = thumbnail(full);
                     NativeImage nativeImage = Pixels.toNative(thumb);
                     DynamicTexture texture = new DynamicTexture(nativeImage);
                     ResourceLocation location = Minecraft.getInstance().getTextureManager().register(
                             SnipasteMcMod.MOD_ID + "/pick/" + list.nextId++,
                             texture);
-                    return new Row(list, image.path(), texture, location, nativeImage.getWidth(), nativeImage.getHeight(), full.getWidth(), full.getHeight());
+                    return new Row(list, path, false, texture, location, nativeImage.getWidth(), nativeImage.getHeight(), full.getWidth(), full.getHeight());
                 }
                 catch (IOException | RuntimeException exception)
                 {
                     return null;
                 }
+            }
+
+            private boolean isDirectory()
+            {
+                return this.directory;
             }
 
             private Path path()
@@ -283,14 +384,15 @@ public class ImagePickScreen extends Screen
 
             private void release()
             {
-                if (this.released)
+                if (this.released || this.texture == null)
                 {
+                    this.released = true;
                     return;
                 }
                 this.released = true;
                 this.texture.close();
                 Minecraft minecraft = Minecraft.getInstance();
-                if (minecraft != null)
+                if (minecraft != null && this.location != null)
                 {
                     minecraft.getTextureManager().release(this.location);
                 }
@@ -299,12 +401,20 @@ public class ImagePickScreen extends Screen
             @Override
             public Component getNarration()
             {
-                return Component.literal(ImageFolder.displayName(this.path));
+                return Component.literal(this.path.getFileName().toString());
             }
 
             @Override
             public void render(GuiGraphics graphics, int index, int top, int left, int width, int height, int mouseX, int mouseY, boolean hovered, float partialTick)
             {
+                Minecraft minecraft = Minecraft.getInstance();
+                String name = minecraft.font.plainSubstrByWidth(this.path.getFileName().toString(), width - 48);
+                if (this.directory)
+                {
+                    drawFolder(graphics, left + 6, top + (height - 22) / 2);
+                    graphics.drawString(minecraft.font, name, left + 44, top + (height - 8) / 2, 0xFFFFFF, false);
+                    return;
+                }
                 int box = 32;
                 float scale = Math.min(box / (float) this.sourceWidth, box / (float) this.sourceHeight);
                 int drawWidth = Math.max(1, Math.round(this.sourceWidth * scale));
@@ -323,8 +433,6 @@ public class ImagePickScreen extends Screen
                         this.sourceHeight,
                         this.sourceWidth,
                         this.sourceHeight);
-                Minecraft minecraft = Minecraft.getInstance();
-                String name = minecraft.font.plainSubstrByWidth(ImageFolder.displayName(this.path), width - 48);
                 int color = ImageFolder.chosen() != null && ImageFolder.chosen().equals(this.path) ? 0xFFFF55 : 0xFFFFFF;
                 graphics.drawString(minecraft.font, name, left + 44, top + 8, color, false);
                 graphics.drawString(minecraft.font, this.fullWidth + " x " + this.fullHeight, left + 44, top + 20, 0xA0A0A0, false);
@@ -336,6 +444,11 @@ public class ImagePickScreen extends Screen
                 if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT)
                 {
                     return false;
+                }
+                if (this.directory)
+                {
+                    this.list.screen.enter(this.path);
+                    return true;
                 }
                 long now = Util.getMillis();
                 boolean again = this.list.getSelected() == this && now - this.lastClickAt < 250L;

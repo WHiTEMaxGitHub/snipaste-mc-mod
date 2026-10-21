@@ -28,6 +28,7 @@ public final class SnipasteConfig
     public static final ForgeConfigSpec.IntValue SHADOW_GREEN;
     public static final ForgeConfigSpec.IntValue SHADOW_BLUE;
     public static final String DEFAULT_HIDE_KEY = "key.keyboard.f7";
+    public static final ForgeConfigSpec.ConfigValue<String> SKIP_DELETE_CONFIRM;
 
     static
     {
@@ -66,6 +67,9 @@ public final class SnipasteConfig
         HIDE_MODIFIERS = builder
                 .comment("清屏快捷键的修饰键。1 是 Shift，2 是 Ctrl，4 是 Alt，可以相加。")
                 .defineInRange("hideModifiers", GLFW.GLFW_MOD_SHIFT, 0, GLFW.GLFW_MOD_SHIFT | GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_ALT);
+        SKIP_DELETE_CONFIRM = builder
+                .comment("勾选不再提示后记下的模组版本和存档。对不上就还会再问一次。")
+                .define("skipDeleteConfirm", "");
         builder.comment("图像阴影").push("shadow");
         SHADOW_ENABLED = builder
                 .comment("是否在图像背后绘制阴影。")
@@ -263,6 +267,22 @@ public final class SnipasteConfig
         }
         HIDE_KEY.set(name);
         HIDE_MODIFIERS.set(mask);
+        SPEC.save();
+    }
+
+    public static boolean skipsDeleteConfirm(String scope)
+    {
+        String saved = SKIP_DELETE_CONFIRM.get();
+        return scope != null && !scope.isEmpty() && scope.equals(saved);
+    }
+
+    public static void rememberDeleteConfirmSkip(String scope)
+    {
+        if (scope == null || scope.isEmpty() || scope.equals(SKIP_DELETE_CONFIRM.get()))
+        {
+            return;
+        }
+        SKIP_DELETE_CONFIRM.set(scope);
         SPEC.save();
     }
 

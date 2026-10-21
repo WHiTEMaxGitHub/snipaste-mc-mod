@@ -126,12 +126,7 @@ public class ImagePreviewScreen extends Screen
 
     private void deleteImage()
     {
-        if (!ImageFolder.delete(this.path))
-        {
-            SnipasteClient.tell(Component.translatable("message.snipaste_mc_mod.delete_failed"));
-            return;
-        }
-        onClose();
+        DeleteImageScreen.ask(this.parent, this.path);
     }
 
     private void pasteDirect()

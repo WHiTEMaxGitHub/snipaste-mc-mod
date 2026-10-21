@@ -53,10 +53,9 @@ public class SnipasteConfigScreen extends Screen
                 })
                 .bounds(left, y, 150, 20)
                 .build());
-        y += ROW;
         addRenderableWidget(CycleButton.onOffBuilder()
                 .withInitialValue(SnipasteConfig.allowStretch())
-                .create(left, y, 150, 20, Component.translatable("screen.snipaste_mc_mod.allow_stretch"),
+                .create(right, y, 150, 20, Component.translatable("screen.snipaste_mc_mod.allow_stretch"),
                         (button, value) -> SnipasteConfig.setAllowStretch(value)));
         y += ROW;
         addRenderableWidget(Button.builder(Component.translatable("screen.snipaste_mc_mod.shadow_page"), button -> {

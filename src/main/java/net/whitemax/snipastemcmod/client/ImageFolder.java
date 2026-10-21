@@ -121,6 +121,41 @@ public final class ImageFolder
         return images;
     }
 
+    public static List<Entry> children(Path directory) throws IOException
+    {
+        Path root = directory().toAbsolutePath().normalize();
+        Path current = directory == null ? root : directory.toAbsolutePath().normalize();
+        if (!current.startsWith(root) || !Files.isDirectory(current))
+        {
+            current = root;
+        }
+        List<Entry> folders = new ArrayList<>();
+        List<Entry> images = new ArrayList<>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(current))
+        {
+            for (Path path : stream)
+            {
+                if (Files.isSymbolicLink(path))
+                {
+                    continue;
+                }
+                if (Files.isDirectory(path))
+                {
+                    folders.add(new Entry(path, true, Files.getLastModifiedTime(path).toMillis()));
+                    continue;
+                }
+                if (Files.isRegularFile(path) && isImage(path))
+                {
+                    images.add(new Entry(path, false, Files.getLastModifiedTime(path).toMillis()));
+                }
+            }
+        }
+        folders.sort(Comparator.comparing(entry -> entry.path().getFileName().toString(), String.CASE_INSENSITIVE_ORDER));
+        images.sort(Comparator.comparingLong(Entry::modified).reversed());
+        folders.addAll(images);
+        return folders;
+    }
+
     public static String displayName(Path path)
     {
         Path root = directory().toAbsolutePath().normalize();
@@ -141,6 +176,148 @@ public final class ImageFolder
         catch (IOException exception)
         {
             LOGGER.warn("Failed to trim the snipaste folder", exception);
+        }
+    }
+
+    public static String editableName(Path path)
+    {
+        String name = path.getFileName().toString();
+        if (Files.isDirectory(path))
+        {
+            return name;
+        }
+        int dot = name.lastIndexOf('.');
+        return dot > 0 ? name.substring(0, dot) : name;
+    }
+
+    public static RenameOutcome rename(Path source, String rawName)
+    {
+        if (source == null)
+        {
+            return RenameOutcome.failed();
+        }
+        try
+        {
+            Path root = directory().toAbsolutePath().normalize();
+            Path from = source.toAbsolutePath().normalize();
+            if (from.equals(root) || !from.startsWith(root) || !Files.exists(from) || Files.isSymbolicLink(from))
+            {
+                return RenameOutcome.failed();
+            }
+            String name = finalName(from, rawName);
+            if (name == null)
+            {
+                return RenameOutcome.failed();
+            }
+            if (name.equals(from.getFileName().toString()))
+            {
+                return new RenameOutcome(from, false);
+            }
+            Path parent = from.getParent();
+            Path to = parent.resolve(name).normalize();
+            if (!to.startsWith(root) || to.equals(from.getParent()))
+            {
+                return RenameOutcome.failed();
+            }
+            if (name.equalsIgnoreCase(from.getFileName().toString()))
+            {
+                Path temp = parent.resolve(".__rename-" + System.nanoTime());
+                Files.move(from, temp);
+                try
+                {
+                    Files.move(temp, to);
+                }
+                catch (IOException exception)
+                {
+                    Files.move(temp, from);
+                    throw exception;
+                }
+            }
+            else
+            {
+                if (Files.exists(to))
+                {
+                    return new RenameOutcome(null, true);
+                }
+                Files.move(from, to);
+            }
+            retarget(from, to);
+            return new RenameOutcome(to, false);
+        }
+        catch (IOException exception)
+        {
+            LOGGER.warn("Failed to rename an entry in the snipaste folder", exception);
+            return RenameOutcome.failed();
+        }
+    }
+
+    private static String finalName(Path source, String rawName)
+    {
+        String name = rawName == null ? "" : rawName.trim();
+        if (name.isEmpty() || ".".equals(name) || "..".equals(name) || name.endsWith(".") || name.endsWith(" "))
+        {
+            return null;
+        }
+        if (!Files.isDirectory(source))
+        {
+            String current = source.getFileName().toString();
+            int dot = current.lastIndexOf('.');
+            String extension = dot > 0 ? current.substring(dot) : "";
+            if (!extension.isEmpty() && name.toLowerCase(Locale.ROOT).endsWith(extension.toLowerCase(Locale.ROOT)))
+            {
+                name = name.substring(0, name.length() - extension.length()).trim();
+                if (name.isEmpty())
+                {
+                    return null;
+                }
+            }
+            name = name + extension;
+        }
+        if (name.length() > 80 || !singleSegment(name))
+        {
+            return null;
+        }
+        String stem = name;
+        int dot = stem.indexOf('.');
+        if (dot >= 0)
+        {
+            stem = stem.substring(0, dot);
+        }
+        if (stem.matches("(?i)(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])"))
+        {
+            return null;
+        }
+        return name;
+    }
+
+    private static boolean singleSegment(String name)
+    {
+        for (int index = 0; index < name.length(); index++)
+        {
+            char character = name.charAt(index);
+            if (character < 32 || "\\/:*?\"<>|".indexOf(character) >= 0)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static void retarget(Path from, Path to)
+    {
+        if (chosen == null)
+        {
+            return;
+        }
+        Path current = chosen.toAbsolutePath().normalize();
+        if (current.equals(from))
+        {
+            chosen = to;
+            return;
+        }
+        if (current.startsWith(from))
+        {
+            chosen = to.resolve(from.relativize(current));
         }
     }
 
@@ -174,11 +351,25 @@ public final class ImageFolder
 
     public static boolean openFolder()
     {
+        return open(directory());
+    }
+
+    public static boolean open(Path path)
+    {
         try
         {
-            Path directory = directory();
-            Files.createDirectories(directory);
-            Util.getPlatform().openFile(directory.toFile());
+            Path root = directory().toAbsolutePath().normalize();
+            Path target = path == null ? root : path.toAbsolutePath().normalize();
+            if (!target.startsWith(root))
+            {
+                target = root;
+            }
+            if (!Files.isDirectory(target))
+            {
+                target = root;
+            }
+            Files.createDirectories(target);
+            Util.getPlatform().openFile(target.toFile());
             return true;
         }
         catch (IOException exception)
@@ -280,6 +471,18 @@ public final class ImageFolder
         BasicFileAttributes attributes = Files.readAttributes(path, BasicFileAttributes.class);
         long created = attributes.creationTime().toMillis();
         return created > 0L ? created : attributes.lastModifiedTime().toMillis();
+    }
+
+    public record Entry(Path path, boolean directory, long modified)
+    {
+    }
+
+    public record RenameOutcome(Path path, boolean taken)
+    {
+        private static RenameOutcome failed()
+        {
+            return new RenameOutcome(null, false);
+        }
     }
 
     public record StoredImage(Path path, long modified, long size)
