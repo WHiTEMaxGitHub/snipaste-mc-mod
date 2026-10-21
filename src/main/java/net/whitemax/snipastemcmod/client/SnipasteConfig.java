@@ -34,10 +34,10 @@ public final class SnipasteConfig
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
         builder.comment("贴图浮层").push("overlay");
         DEFAULT_OPACITY = builder
-                .comment("新贴的图片使用的透明度，范围 0.05 到 1。")
-                .defineInRange("defaultOpacity", 1.0D, 0.05D, 1.0D);
+                .comment("新贴图默认的不透明度，范围 0 到 1，对应界面上的 0 到 100。")
+                .defineInRange("defaultOpacity", 1.0D, 0.0D, 1.0D);
         MAX_FOLDER_MEGABYTES = builder
-                .comment("游戏目录 snipaste 文件夹的大小上限，单位 MB。大于该值时从最早放入的图片开始删除。0 表示永不删除。")
+                .comment("游戏目录 snipaste 文件夹的大小上限，单位 MB。0 表示不限制。")
                 .defineInRange("maxFolderMegabytes", 64, 0, 1024);
         BORDER_ENABLED = builder
                 .comment("是否在浮层四周绘制边框。")
@@ -110,7 +110,7 @@ public final class SnipasteConfig
 
     public static void setDefaultOpacity(double opacity)
     {
-        double clamped = Math.max(0.05D, Math.min(1.0D, opacity));
+        double clamped = Math.max(0.0D, Math.min(1.0D, opacity));
         if (Math.abs(DEFAULT_OPACITY.get() - clamped) < 0.001D)
         {
             return;

@@ -116,20 +116,20 @@ public final class ImageFolder
     {
         Path directory = directory();
         Files.createDirectories(directory);
-        List<StoredImage> images = new ArrayList<>();
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory))
-        {
-            for (Path path : stream)
-            {
-                if (!Files.isRegularFile(path) || !isImage(path))
-                {
-                    continue;
-                }
-                images.add(new StoredImage(path, Files.getLastModifiedTime(path).toMillis(), Files.size(path)));
-            }
-        }
+        List<StoredImage> images = collect(directory, false);
         images.sort(Comparator.comparingLong(StoredImage::modified).reversed());
         return images;
+    }
+
+    public static String displayName(Path path)
+    {
+        Path root = directory().toAbsolutePath().normalize();
+        Path target = path.toAbsolutePath().normalize();
+        if (target.startsWith(root))
+        {
+            return root.relativize(target).toString().replace('\\', '/');
+        }
+        return path.getFileName().toString();
     }
 
     public static void enforceLimit()
@@ -188,6 +188,42 @@ public final class ImageFolder
         }
     }
 
+    private static List<StoredImage> collect(Path root, boolean byEntered) throws IOException
+    {
+        List<StoredImage> images = new ArrayList<>();
+        walk(root, images, byEntered, 0);
+        return images;
+    }
+
+    private static void walk(Path directory, List<StoredImage> images, boolean byEntered, int depth) throws IOException
+    {
+        if (depth > 32 || !Files.isDirectory(directory))
+        {
+            return;
+        }
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory))
+        {
+            for (Path path : stream)
+            {
+                if (Files.isSymbolicLink(path))
+                {
+                    continue;
+                }
+                if (Files.isDirectory(path))
+                {
+                    walk(path, images, byEntered, depth + 1);
+                    continue;
+                }
+                if (!Files.isRegularFile(path) || !isImage(path))
+                {
+                    continue;
+                }
+                long time = byEntered ? entered(path) : Files.getLastModifiedTime(path).toMillis();
+                images.add(new StoredImage(path, time, Files.size(path)));
+            }
+        }
+    }
+
     private static boolean isImage(Path path)
     {
         String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
@@ -204,18 +240,7 @@ public final class ImageFolder
         {
             return;
         }
-        List<StoredImage> images = new ArrayList<>();
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory))
-        {
-            for (Path path : stream)
-            {
-                if (!Files.isRegularFile(path) || !isImage(path))
-                {
-                    continue;
-                }
-                images.add(new StoredImage(path, entered(path), Files.size(path)));
-            }
-        }
+        List<StoredImage> images = collect(directory, true);
         images.sort(Comparator.comparingLong(StoredImage::modified));
         long total = 0L;
         for (StoredImage image : images)

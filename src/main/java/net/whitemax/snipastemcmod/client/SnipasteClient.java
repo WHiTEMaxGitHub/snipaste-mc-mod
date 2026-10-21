@@ -262,6 +262,7 @@ public final class SnipasteClient
         return screen instanceof SnipasteConfigScreen
                 || screen instanceof SnipasteKeybindsScreen
                 || screen instanceof SnipasteShadowScreen
+                || screen instanceof SnipasteBorderScreen
                 || screen instanceof ImagePickScreen
                 || screen instanceof ImagePreviewScreen
                 || screen instanceof PauseScreen

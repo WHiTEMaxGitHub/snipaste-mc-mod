@@ -76,7 +76,7 @@ public final class StickyImage
 
     public void setOpacity(float opacity)
     {
-        this.opacity = Math.max(0.05F, Math.min(1.0F, opacity));
+        this.opacity = Math.max(0.0F, Math.min(1.0F, opacity));
     }
 
     public void place(int x, int y, int width, int height)

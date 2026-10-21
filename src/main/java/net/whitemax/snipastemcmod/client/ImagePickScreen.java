@@ -24,6 +24,7 @@ public class ImagePickScreen extends Screen
 {
     private final Screen parent;
     private ImageList list;
+    private Button deleteButton;
 
     public ImagePickScreen(Screen parent)
     {
@@ -42,17 +43,24 @@ public class ImagePickScreen extends Screen
         this.addWidget(this.list);
         this.list.reload();
         int y = this.height - 28;
+        int x = this.width / 2 - 158;
         addRenderableWidget(Button.builder(Component.translatable("screen.snipaste_mc_mod.open_folder"), button -> {
             if (!ImageFolder.openFolder())
             {
                 SnipasteClient.tell(Component.translatable("message.snipaste_mc_mod.open_failed"));
             }
-        }).bounds(this.width / 2 - 154, y, 100, 20).build());
+        }).bounds(x, y, 100, 20).build());
+        x += 104;
         addRenderableWidget(Button.builder(Component.translatable("screen.snipaste_mc_mod.refresh"), button -> this.list.reload())
-                .bounds(this.width / 2 - 50, y, 96, 20)
+                .bounds(x, y, 68, 20)
                 .build());
+        x += 72;
+        this.deleteButton = addRenderableWidget(Button.builder(Component.translatable("screen.snipaste_mc_mod.delete_short"), button -> deleteSelected())
+                .bounds(x, y, 68, 20)
+                .build());
+        x += 72;
         addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> onClose())
-                .bounds(this.width / 2 + 50, y, 104, 20)
+                .bounds(x, y, 68, 20)
                 .build());
         this.setFocused(this.list);
     }
@@ -80,6 +88,25 @@ public class ImagePickScreen extends Screen
             edit.selectLast();
         }
         this.minecraft.setScreen(this.parent);
+    }
+
+    private void deleteSelected()
+    {
+        if (this.list == null)
+        {
+            return;
+        }
+        ImageList.Row row = this.list.getSelected();
+        if (row == null)
+        {
+            return;
+        }
+        if (!ImageFolder.delete(row.path()))
+        {
+            SnipasteClient.tell(Component.translatable("message.snipaste_mc_mod.delete_failed"));
+            return;
+        }
+        this.list.reload();
     }
 
     @Override
@@ -121,6 +148,10 @@ public class ImagePickScreen extends Screen
         if (this.list != null)
         {
             this.list.render(graphics, mouseX, mouseY, partialTick);
+        }
+        if (this.deleteButton != null)
+        {
+            this.deleteButton.active = this.list != null && this.list.getSelected() != null;
         }
         graphics.drawCenteredString(this.font, this.title, this.width / 2, 8, 0xFFFFFF);
         graphics.drawCenteredString(this.font, Component.translatable("screen.snipaste_mc_mod.pick_hint"), this.width / 2, this.height - 44, 0xA0A0A0);
@@ -268,7 +299,7 @@ public class ImagePickScreen extends Screen
             @Override
             public Component getNarration()
             {
-                return Component.literal(this.path.getFileName().toString());
+                return Component.literal(ImageFolder.displayName(this.path));
             }
 
             @Override
@@ -293,7 +324,7 @@ public class ImagePickScreen extends Screen
                         this.sourceWidth,
                         this.sourceHeight);
                 Minecraft minecraft = Minecraft.getInstance();
-                String name = minecraft.font.plainSubstrByWidth(this.path.getFileName().toString(), width - 48);
+                String name = minecraft.font.plainSubstrByWidth(ImageFolder.displayName(this.path), width - 48);
                 int color = ImageFolder.chosen() != null && ImageFolder.chosen().equals(this.path) ? 0xFFFF55 : 0xFFFFFF;
                 graphics.drawString(minecraft.font, name, left + 44, top + 8, color, false);
                 graphics.drawString(minecraft.font, this.fullWidth + " x " + this.fullHeight, left + 44, top + 20, 0xA0A0A0, false);
