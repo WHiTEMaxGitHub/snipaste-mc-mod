@@ -15,6 +15,7 @@ public final class SnipasteConfig
     public static final ForgeConfigSpec.IntValue BORDER_RED;
     public static final ForgeConfigSpec.IntValue BORDER_GREEN;
     public static final ForgeConfigSpec.IntValue BORDER_BLUE;
+    public static final ForgeConfigSpec.IntValue BORDER_ALPHA;
     public static final ForgeConfigSpec.BooleanValue ALLOW_STRETCH;
     public static final ForgeConfigSpec.ConfigValue<String> SNIP_KEY;
     public static final ForgeConfigSpec.IntValue SNIP_MODIFIERS;
@@ -30,10 +31,13 @@ public final class SnipasteConfig
     public static final ForgeConfigSpec.IntValue TEXT_RED;
     public static final ForgeConfigSpec.IntValue TEXT_GREEN;
     public static final ForgeConfigSpec.IntValue TEXT_BLUE;
+    public static final ForgeConfigSpec.IntValue TEXT_ALPHA;
+    public static final ForgeConfigSpec.IntValue TEXT_SIZE;
     public static final ForgeConfigSpec.BooleanValue TEXT_BACKGROUND;
     public static final ForgeConfigSpec.IntValue TEXT_BG_RED;
     public static final ForgeConfigSpec.IntValue TEXT_BG_GREEN;
     public static final ForgeConfigSpec.IntValue TEXT_BG_BLUE;
+    public static final ForgeConfigSpec.IntValue TEXT_BG_ALPHA;
     public static final int MODIFIER_MASK = GLFW.GLFW_MOD_SHIFT | GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_ALT;
     public static final ForgeConfigSpec.BooleanValue SHADOW_ENABLED;
     public static final ForgeConfigSpec.DoubleValue SHADOW_OPACITY;
@@ -44,7 +48,8 @@ public final class SnipasteConfig
     public static final ForgeConfigSpec.IntValue SHADOW_RED;
     public static final ForgeConfigSpec.IntValue SHADOW_GREEN;
     public static final ForgeConfigSpec.IntValue SHADOW_BLUE;
-    public static final String DEFAULT_HIDE_KEY = "key.keyboard.f9";
+    public static final ForgeConfigSpec.IntValue SHADOW_ALPHA;
+    public static final String DEFAULT_HIDE_KEY = "key.keyboard.f6";
     public static final String DEFAULT_CLIP_KEY = "key.keyboard.f7";
     public static final ForgeConfigSpec.ConfigValue<String> SKIP_DELETE_CONFIRM;
 
@@ -76,6 +81,9 @@ public final class SnipasteConfig
         BORDER_BLUE = builder
                 .comment("边框蓝色分量，0 到 255。")
                 .defineInRange("borderBlue", 255, 0, 255);
+        BORDER_ALPHA = builder
+                .comment("边框透明度，0 到 255。还会再乘贴图自己的不透明度。")
+                .defineInRange("borderAlpha", 255, 0, 255);
         ALLOW_STRETCH = builder
                 .comment("允许单独改变浮层的宽或高。关闭后只能等比例缩放。")
                 .define("allowStretch", false);
@@ -86,7 +94,7 @@ public final class SnipasteConfig
         EDIT_KEY = chordKey(builder, "editKey", "编辑快捷键，使用原版按键名。", "key.keyboard.f8");
         EDIT_MODIFIERS = chordModifiers(builder, "editModifiers", 0);
         HIDE_KEY = chordKey(builder, "hideKey", "清屏快捷键，使用原版按键名。", DEFAULT_HIDE_KEY);
-        HIDE_MODIFIERS = chordModifiers(builder, "hideModifiers", 0);
+        HIDE_MODIFIERS = chordModifiers(builder, "hideModifiers", GLFW.GLFW_MOD_SHIFT);
         CLIP_KEY = chordKey(builder, "clipKey", "读取文字剪贴板的快捷键，使用原版按键名。", DEFAULT_CLIP_KEY);
         CLIP_MODIFIERS = chordModifiers(builder, "clipModifiers", GLFW.GLFW_MOD_SHIFT);
         CHORD_REVISION = builder.comment("按键默认值迁移标记。有内容后不再改动已保存的清屏按键。").define("chordRevision", "");
@@ -94,10 +102,13 @@ public final class SnipasteConfig
         TEXT_RED = builder.comment("文字红色分量，0 到 255。").defineInRange("red", 255, 0, 255);
         TEXT_GREEN = builder.comment("文字绿色分量，0 到 255。").defineInRange("green", 255, 0, 255);
         TEXT_BLUE = builder.comment("文字蓝色分量，0 到 255。").defineInRange("blue", 255, 0, 255);
+        TEXT_ALPHA = builder.comment("文字透明度，0 到 255。还会再乘贴图自己的不透明度。").defineInRange("alpha", 255, 0, 255);
+        TEXT_SIZE = builder.comment("文字高度，单位是界面像素。0 表示和游戏界面一样大。").defineInRange("size", 0, 0, 128);
         TEXT_BACKGROUND = builder.comment("是否绘制文字背景。").define("background", true);
         TEXT_BG_RED = builder.comment("背景红色分量，0 到 255。").defineInRange("backgroundRed", 24, 0, 255);
         TEXT_BG_GREEN = builder.comment("背景绿色分量，0 到 255。").defineInRange("backgroundGreen", 24, 0, 255);
         TEXT_BG_BLUE = builder.comment("背景蓝色分量，0 到 255。").defineInRange("backgroundBlue", 24, 0, 255);
+        TEXT_BG_ALPHA = builder.comment("背景透明度，0 到 255。还会再乘贴图自己的不透明度。").defineInRange("backgroundAlpha", 210, 0, 255);
         builder.pop();
         SKIP_DELETE_CONFIRM = builder
                 .comment("勾选不再提示后记下的模组版本和存档。对不上就还会再问一次。")
@@ -130,6 +141,9 @@ public final class SnipasteConfig
         SHADOW_BLUE = builder
                 .comment("阴影蓝色分量，0 到 255。")
                 .defineInRange("blue", 0, 0, 255);
+        SHADOW_ALPHA = builder
+                .comment("阴影颜色的透明度，0 到 255。还会再乘阴影不透明度和贴图自己的不透明度。")
+                .defineInRange("alpha", 255, 0, 255);
         builder.pop();
         builder.pop();
         SPEC = builder.build();
@@ -227,6 +241,11 @@ public final class SnipasteConfig
         return BORDER_BLUE.get();
     }
 
+    public static int borderAlpha()
+    {
+        return BORDER_ALPHA.get();
+    }
+
     public static int borderRgb()
     {
         return (borderRed() << 16) | (borderGreen() << 8) | borderBlue();
@@ -247,9 +266,24 @@ public final class SnipasteConfig
         return TEXT_BLUE.get();
     }
 
+    public static int textAlpha()
+    {
+        return TEXT_ALPHA.get();
+    }
+
     public static int textRgb()
     {
         return (textRed() << 16) | (textGreen() << 8) | textBlue();
+    }
+
+    public static int textSize()
+    {
+        return TEXT_SIZE.get();
+    }
+
+    public static void setTextSize(int size)
+    {
+        setInt(TEXT_SIZE, size, 0, 128);
     }
 
     public static boolean textBackground()
@@ -281,6 +315,11 @@ public final class SnipasteConfig
         return TEXT_BG_BLUE.get();
     }
 
+    public static int textBackgroundAlpha()
+    {
+        return TEXT_BG_ALPHA.get();
+    }
+
     public static int textBackgroundRgb()
     {
         return (textBackgroundRed() << 16) | (textBackgroundGreen() << 8) | textBackgroundBlue();
@@ -294,14 +333,16 @@ public final class SnipasteConfig
             {
                 case 0 -> textBackgroundRed();
                 case 1 -> textBackgroundGreen();
-                default -> textBackgroundBlue();
+                case 2 -> textBackgroundBlue();
+                default -> textBackgroundAlpha();
             };
         }
         return switch (channel)
         {
             case 0 -> textRed();
             case 1 -> textGreen();
-            default -> textBlue();
+            case 2 -> textBlue();
+            default -> textAlpha();
         };
     }
 
@@ -311,12 +352,14 @@ public final class SnipasteConfig
         {
             case 0 -> TEXT_BG_RED;
             case 1 -> TEXT_BG_GREEN;
-            default -> TEXT_BG_BLUE;
+            case 2 -> TEXT_BG_BLUE;
+            default -> TEXT_BG_ALPHA;
         } : switch (channel)
         {
             case 0 -> TEXT_RED;
             case 1 -> TEXT_GREEN;
-            default -> TEXT_BLUE;
+            case 2 -> TEXT_BLUE;
+            default -> TEXT_ALPHA;
         };
         setInt(target, value, 0, 255);
     }
@@ -327,7 +370,8 @@ public final class SnipasteConfig
         {
             case 0 -> BORDER_RED;
             case 1 -> BORDER_GREEN;
-            default -> BORDER_BLUE;
+            case 2 -> BORDER_BLUE;
+            default -> BORDER_ALPHA;
         };
         setInt(target, value, 0, 255);
     }
@@ -360,18 +404,20 @@ public final class SnipasteConfig
 
     public static void keepClipboardChord()
     {
-        if ("2".equals(CHORD_REVISION.get()))
+        if ("3".equals(CHORD_REVISION.get()))
         {
             return;
         }
         InputConstants.Key hide = chordKey(HIDE_KEY);
-        boolean oldDefault = HIDE_MODIFIERS.get() == GLFW.GLFW_MOD_SHIFT
+        int modifiers = HIDE_MODIFIERS.get();
+        boolean oldShift = modifiers == GLFW.GLFW_MOD_SHIFT
                 && ("key.keyboard.f7".equals(hide.getName()) || "key.keyboard.f8".equals(hide.getName()));
-        if (oldDefault)
+        boolean oldF9 = modifiers == 0 && "key.keyboard.f9".equals(hide.getName());
+        if (oldShift || oldF9)
         {
-            setChord(HIDE_KEY, HIDE_MODIFIERS, InputConstants.getKey(DEFAULT_HIDE_KEY), 0);
+            setChord(HIDE_KEY, HIDE_MODIFIERS, InputConstants.getKey(DEFAULT_HIDE_KEY), GLFW.GLFW_MOD_SHIFT);
         }
-        CHORD_REVISION.set("2");
+        CHORD_REVISION.set("3");
         SPEC.save();
     }
 
@@ -500,6 +546,11 @@ public final class SnipasteConfig
         return SHADOW_BLUE.get();
     }
 
+    public static int shadowAlpha()
+    {
+        return SHADOW_ALPHA.get();
+    }
+
     public static int shadowRgb()
     {
         return (shadowRed() << 16) | (shadowGreen() << 8) | shadowBlue();
@@ -511,7 +562,8 @@ public final class SnipasteConfig
         {
             case 0 -> SHADOW_RED;
             case 1 -> SHADOW_GREEN;
-            default -> SHADOW_BLUE;
+            case 2 -> SHADOW_BLUE;
+            default -> SHADOW_ALPHA;
         };
         setInt(target, value, 0, 255);
     }

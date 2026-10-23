@@ -7,6 +7,8 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.Util;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.util.Mth;
@@ -14,28 +16,8 @@ import org.joml.Matrix4f;
 
 public final class StickyRenderer
 {
-    public static final int CLOSE_SIZE = 8;
-    private static final int CLOSE_INSET = 12;
-
     private StickyRenderer()
     {
-    }
-
-    public static int closeX(StickyImage image)
-    {
-        return image.x() + image.width() - CLOSE_SIZE - CLOSE_INSET;
-    }
-
-    public static int closeY(StickyImage image)
-    {
-        return image.y() + CLOSE_INSET;
-    }
-
-    public static boolean overClose(StickyImage image, double mouseX, double mouseY)
-    {
-        int x = closeX(image);
-        int y = closeY(image);
-        return mouseX >= x && mouseX < x + CLOSE_SIZE && mouseY >= y && mouseY < y + CLOSE_SIZE;
     }
 
     public static void draw(GuiGraphics graphics, boolean editing, int selectedIndex)
@@ -46,19 +28,26 @@ public final class StickyRenderer
             shadow(graphics, image);
             RenderSystem.enableBlend();
             RenderSystem.defaultBlendFunc();
-            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, image.opacity());
-            graphics.blit(
-                    image.location(),
-                    image.x(),
-                    image.y(),
-                    image.width(),
-                    image.height(),
-                    0.0F,
-                    0.0F,
-                    image.sourceWidth(),
-                    image.sourceHeight(),
-                    image.sourceWidth(),
-                    image.sourceHeight());
+            if (image.lines() != null)
+            {
+                drawText(graphics, image);
+            }
+            else
+            {
+                RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, image.opacity());
+                graphics.blit(
+                        image.location(),
+                        image.x(),
+                        image.y(),
+                        image.width(),
+                        image.height(),
+                        0.0F,
+                        0.0F,
+                        image.sourceWidth(),
+                        image.sourceHeight(),
+                        image.sourceWidth(),
+                        image.sourceHeight());
+            }
             RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
             frame(graphics, image);
 
@@ -73,22 +62,34 @@ public final class StickyRenderer
                 handle(graphics, image.x() + image.width() / 2, image.y() + image.height());
                 handle(graphics, image.x(), image.y() + image.height() / 2);
                 handle(graphics, image.x() + image.width(), image.y() + image.height() / 2);
-                int closeX = closeX(image);
-                int closeY = closeY(image);
-                graphics.fill(closeX, closeY, closeX + CLOSE_SIZE, closeY + CLOSE_SIZE, 0xE0C04040);
-                closeGlyph(graphics, closeX, closeY);
             }
         }
     }
 
-    private static void closeGlyph(GuiGraphics graphics, int x, int y)
+    private static void drawText(GuiGraphics graphics, StickyImage image)
     {
-        int inset = 2;
-        for (int i = inset; i < CLOSE_SIZE - inset; i++)
+        float scaleX = image.sourceWidth() <= 0 ? 1.0F : image.width() / (float) image.sourceWidth();
+        float scaleY = image.sourceHeight() <= 0 ? 1.0F : image.height() / (float) image.sourceHeight();
+        int alpha = scaledAlpha(image.opacity(), SnipasteConfig.textAlpha());
+        graphics.flush();
+        org.lwjgl.opengl.GL11.glGetError();
+        graphics.pose().pushPose();
+        graphics.pose().translate(image.x(), image.y(), 0.0F);
+        graphics.pose().scale(scaleX, scaleY, 1.0F);
+        if (SnipasteConfig.textBackground())
         {
-            graphics.fill(x + i, y + i, x + i + 1, y + i + 1, 0xFFFFFFFF);
-            graphics.fill(x + CLOSE_SIZE - 1 - i, y + i, x + CLOSE_SIZE - i, y + i + 1, 0xFFFFFFFF);
+            int backgroundAlpha = scaledAlpha(image.opacity(), SnipasteConfig.textBackgroundAlpha());
+            graphics.fill(0, 0, image.sourceWidth(), image.sourceHeight(), (backgroundAlpha << 24) | SnipasteConfig.textBackgroundRgb());
         }
+        Font font = Minecraft.getInstance().font;
+        int color = (alpha << 24) | SnipasteConfig.textRgb();
+        int textY = image.textPadding();
+        for (String line : image.lines())
+        {
+            graphics.drawString(font, line, image.textPadding(), textY, color, false);
+            textY += font.lineHeight;
+        }
+        graphics.pose().popPose();
     }
 
     private static void border(GuiGraphics graphics, int x, int y, int width, int height, int color)
@@ -105,7 +106,7 @@ public final class StickyRenderer
         {
             return;
         }
-        float opacity = SnipasteConfig.shadowOpacity() * image.opacity();
+        float opacity = SnipasteConfig.shadowOpacity() * image.opacity() * (SnipasteConfig.shadowAlpha() / 255.0F);
         if (opacity <= 0.001F)
         {
             return;
@@ -134,6 +135,11 @@ public final class StickyRenderer
         }
     }
 
+    private static int scaledAlpha(float opacity, int channel)
+    {
+        return Math.round(Mth.clamp(opacity, 0.0F, 1.0F) * channel);
+    }
+
     private static int color(float alpha, int rgb)
     {
         int channel = Math.round(Mth.clamp(alpha, 0.0F, 1.0F) * 255.0F);
@@ -147,7 +153,7 @@ public final class StickyRenderer
             return;
         }
         float thickness = (float) SnipasteConfig.borderWidth();
-        int alpha = Math.round(Mth.clamp(image.opacity(), 0.0F, 1.0F) * 255.0F);
+        int alpha = scaledAlpha(image.opacity(), SnipasteConfig.borderAlpha());
         float left = image.x() - thickness;
         float top = image.y() - thickness;
         float right = image.x() + image.width() + thickness;
@@ -218,6 +224,7 @@ public final class StickyRenderer
         float red = (color >>> 16 & 255) / 255.0F;
         float green = (color >>> 8 & 255) / 255.0F;
         float blue = (color & 255) / 255.0F;
+        graphics.flush();
         Matrix4f matrix = graphics.pose().last().pose();
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();

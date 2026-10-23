@@ -15,13 +15,8 @@ public class SnipasteBorderScreen extends Screen
     private static final int ROW = 24;
     private final Screen parent;
     private EditBox widthBox;
-    private EditBox redBox;
-    private EditBox greenBox;
-    private EditBox blueBox;
     private int widthLabelX;
-    private int redLabelX;
-    private int greenLabelX;
-    private int blueLabelX;
+    private Button colorSwatch;
 
     public SnipasteBorderScreen(Screen parent)
     {
@@ -48,16 +43,12 @@ public class SnipasteBorderScreen extends Screen
         this.widthLabelX = left;
         this.widthBox = numberBox(left + this.font.width(widthLabel) + 8, y, 72, formatWidth(SnipasteConfig.borderWidth()), 6, true);
         y += ROW;
-        int nameWidth = Math.max(this.font.width(channelName(0)), Math.max(this.font.width(channelName(1)), this.font.width(channelName(2))));
-        int boxWidth = 56;
-        int group = nameWidth + 6 + boxWidth;
-        int gap = Math.max(8, (310 - group * 3) / 2);
-        this.redLabelX = left;
-        this.redBox = channelBox(this.redLabelX + nameWidth + 6, y, boxWidth, SnipasteConfig.borderRed());
-        this.greenLabelX = this.redBox.getX() + boxWidth + gap;
-        this.greenBox = channelBox(this.greenLabelX + nameWidth + 6, y, boxWidth, SnipasteConfig.borderGreen());
-        this.blueLabelX = this.greenBox.getX() + boxWidth + gap;
-        this.blueBox = channelBox(this.blueLabelX + nameWidth + 6, y, boxWidth, SnipasteConfig.borderBlue());
+        addRenderableWidget(Button.builder(Component.translatable("screen.snipaste_mc_mod.border_color"), button -> openColor())
+                .bounds(left, y, 150, 20)
+                .build());
+        this.colorSwatch = addRenderableWidget(Button.builder(Component.empty(), button -> openColor())
+                .bounds(left + 156, y, 36, 20)
+                .build());
         addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> onClose())
                 .bounds(this.width / 2 - 100, this.height - 27, 200, 20)
                 .build());
@@ -80,9 +71,6 @@ public class SnipasteBorderScreen extends Screen
     public void tick()
     {
         syncWidth(false);
-        syncChannel(this.redBox, 0, false);
-        syncChannel(this.greenBox, 1, false);
-        syncChannel(this.blueBox, 2, false);
     }
 
     @Override
@@ -93,19 +81,29 @@ public class SnipasteBorderScreen extends Screen
         if (this.widthBox != null)
         {
             drawLabel(graphics, "screen.snipaste_mc_mod.border_width", this.widthLabelX, this.widthBox.getY());
-            drawPlain(graphics, channelName(0), this.redLabelX, this.redBox.getY());
-            drawPlain(graphics, channelName(1), this.greenLabelX, this.greenBox.getY());
-            drawPlain(graphics, channelName(2), this.blueLabelX, this.blueBox.getY());
         }
         super.render(graphics, mouseX, mouseY, partialTick);
+        if (this.colorSwatch != null)
+        {
+            SnipasteColorScreen.paintSwatch(graphics, this.colorSwatch.getX() + 2, this.colorSwatch.getY() + 2, this.colorSwatch.getWidth() - 4, this.colorSwatch.getHeight() - 4, SnipasteConfig.borderRgb(), SnipasteConfig.borderAlpha());
+        }
     }
 
     private void commitAll()
     {
         syncWidth(true);
-        syncChannel(this.redBox, 0, true);
-        syncChannel(this.greenBox, 1, true);
-        syncChannel(this.blueBox, 2, true);
+    }
+
+    private void openColor()
+    {
+        commitAll();
+        this.minecraft.setScreen(new SnipasteColorScreen(this, Component.translatable("screen.snipaste_mc_mod.border_color"), SnipasteConfig.borderRgb(), SnipasteConfig.borderAlpha(),
+                (red, green, blue, alpha) -> {
+                    SnipasteConfig.setBorderChannel(0, red);
+                    SnipasteConfig.setBorderChannel(1, green);
+                    SnipasteConfig.setBorderChannel(2, blue);
+                    SnipasteConfig.setBorderChannel(3, alpha);
+                }));
     }
 
     private void syncWidth(boolean force)
@@ -132,36 +130,6 @@ public class SnipasteBorderScreen extends Screen
         NumberBoxes.show(this.widthBox, formatWidth(SnipasteConfig.borderWidth()));
     }
 
-    private void syncChannel(EditBox box, int channel, boolean force)
-    {
-        if (box == null)
-        {
-            return;
-        }
-        box.tick();
-        if (box.isFocused() && !force)
-        {
-            Double value = NumberBoxes.parse(box.getValue());
-            if (value != null && value >= 0.0D && value <= 255.0D)
-            {
-                SnipasteConfig.setBorderChannel(channel, (int) Math.round(value));
-            }
-            return;
-        }
-        Double value = NumberBoxes.parse(box.getValue());
-        if (value != null)
-        {
-            SnipasteConfig.setBorderChannel(channel, (int) Math.round(value));
-        }
-        int current = switch (channel)
-        {
-            case 0 -> SnipasteConfig.borderRed();
-            case 1 -> SnipasteConfig.borderGreen();
-            default -> SnipasteConfig.borderBlue();
-        };
-        NumberBoxes.show(box, String.valueOf(current));
-    }
-
     private EditBox numberBox(int x, int y, int width, String value, int maxLength, boolean decimal)
     {
         EditBox box = new EditBox(this.font, x, y, width, 20, Component.empty());
@@ -171,30 +139,9 @@ public class SnipasteBorderScreen extends Screen
         return addRenderableWidget(box);
     }
 
-    private EditBox channelBox(int x, int y, int width, int value)
-    {
-        return numberBox(x, y, width, String.valueOf(value), 4, false);
-    }
-
     private void drawLabel(GuiGraphics graphics, String key, int x, int y)
     {
         graphics.drawString(this.font, Component.translatable(key), x, y + 6, 0xFFFFFF, false);
-    }
-
-    private void drawPlain(GuiGraphics graphics, String text, int x, int y)
-    {
-        graphics.drawString(this.font, text, x, y + 6, 0xFFFFFF, false);
-    }
-
-    private static String channelName(int channel)
-    {
-        String key = switch (channel)
-        {
-            case 0 -> "screen.snipaste_mc_mod.channel_red";
-            case 1 -> "screen.snipaste_mc_mod.channel_green";
-            default -> "screen.snipaste_mc_mod.channel_blue";
-        };
-        return Component.translatable(key).getString();
     }
 
     private static boolean acceptsDecimal(String text)

@@ -12,20 +12,11 @@ public class SnipasteTextScreen extends Screen
 {
     private static final int ROW = 24;
     private final Screen parent;
-    private EditBox textRed;
-    private EditBox textGreen;
-    private EditBox textBlue;
-    private EditBox backgroundRed;
-    private EditBox backgroundGreen;
-    private EditBox backgroundBlue;
-    private int textLabelX;
-    private int backgroundLabelX;
-    private int textRedX;
-    private int textGreenX;
-    private int textBlueX;
-    private int backgroundRedX;
-    private int backgroundGreenX;
-    private int backgroundBlueX;
+    private EditBox sizeBox;
+    private int sizeLabelX;
+    private int sizeTipW;
+    private Button textSwatch;
+    private Button backgroundSwatch;
 
     public SnipasteTextScreen(Screen parent)
     {
@@ -42,26 +33,25 @@ public class SnipasteTextScreen extends Screen
                 .withInitialValue(SnipasteConfig.textBackground())
                 .create(left, y, 150, 20, Component.translatable("screen.snipaste_mc_mod.text_background"),
                         (button, value) -> SnipasteConfig.setTextBackground(value)));
+        int right = this.width / 2 + 5;
+        this.sizeLabelX = right;
+        int sizeLabelWidth = this.font.width(Component.translatable("screen.snipaste_mc_mod.text_size"));
+        this.sizeBox = new EditBox(this.font, right + sizeLabelWidth + 6, y, 48, 20, Component.empty());
+        this.sizeBox.setMaxLength(3);
+        this.sizeBox.setValue(String.valueOf(SnipasteConfig.textSize()));
+        this.sizeBox.setFilter(NumberBoxes::acceptsInteger);
+        addRenderableWidget(this.sizeBox);
+        this.sizeTipW = this.sizeBox.getX() + this.sizeBox.getWidth() - this.sizeLabelX;
         y += ROW;
-        int nameWidth = Math.max(this.font.width(channelName(0)), Math.max(this.font.width(channelName(1)), this.font.width(channelName(2))));
-        int boxWidth = 48;
-        this.textLabelX = left;
-        int textLabelWidth = this.font.width(Component.translatable("screen.snipaste_mc_mod.text_color"));
-        this.textRedX = left + textLabelWidth + 10;
-        this.textRed = channelBox(this.textRedX + nameWidth + 4, y, boxWidth, false, 0);
-        this.textGreenX = this.textRed.getX() + boxWidth + 12;
-        this.textGreen = channelBox(this.textGreenX + nameWidth + 4, y, boxWidth, false, 1);
-        this.textBlueX = this.textGreen.getX() + boxWidth + 12;
-        this.textBlue = channelBox(this.textBlueX + nameWidth + 4, y, boxWidth, false, 2);
+        addRenderableWidget(Button.builder(Component.translatable("screen.snipaste_mc_mod.text_color"), button -> openColor(false))
+                .bounds(left, y, 150, 20)
+                .build());
+        this.textSwatch = colorSwatch(left + 156, y, false);
         y += ROW;
-        this.backgroundLabelX = left;
-        int backgroundLabelWidth = this.font.width(Component.translatable("screen.snipaste_mc_mod.text_bg_color"));
-        this.backgroundRedX = left + backgroundLabelWidth + 10;
-        this.backgroundRed = channelBox(this.backgroundRedX + nameWidth + 4, y, boxWidth, true, 0);
-        this.backgroundGreenX = this.backgroundRed.getX() + boxWidth + 12;
-        this.backgroundGreen = channelBox(this.backgroundGreenX + nameWidth + 4, y, boxWidth, true, 1);
-        this.backgroundBlueX = this.backgroundGreen.getX() + boxWidth + 12;
-        this.backgroundBlue = channelBox(this.backgroundBlueX + nameWidth + 4, y, boxWidth, true, 2);
+        addRenderableWidget(Button.builder(Component.translatable("screen.snipaste_mc_mod.text_bg_color"), button -> openColor(true))
+                .bounds(left, y, 150, 20)
+                .build());
+        this.backgroundSwatch = colorSwatch(left + 156, y, true);
         addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> onClose())
                 .bounds(this.width / 2 - 100, this.height - 27, 200, 20)
                 .build());
@@ -83,12 +73,7 @@ public class SnipasteTextScreen extends Screen
     @Override
     public void tick()
     {
-        sync(this.textRed, false, 0, false);
-        sync(this.textGreen, false, 1, false);
-        sync(this.textBlue, false, 2, false);
-        sync(this.backgroundRed, true, 0, false);
-        sync(this.backgroundGreen, true, 1, false);
-        sync(this.backgroundBlue, true, 2, false);
+        syncSize(false);
     }
 
     @Override
@@ -96,61 +81,76 @@ public class SnipasteTextScreen extends Screen
     {
         renderBackground(graphics);
         graphics.drawCenteredString(this.font, this.title, this.width / 2, 15, 0xFFFFFF);
-        if (this.textRed != null)
+        if (this.sizeBox != null)
         {
-            drawLabel(graphics, "screen.snipaste_mc_mod.text_color", this.textLabelX, this.textRed.getY());
-            drawPlain(graphics, channelName(0), this.textRedX, this.textRed.getY());
-            drawPlain(graphics, channelName(1), this.textGreenX, this.textGreen.getY());
-            drawPlain(graphics, channelName(2), this.textBlueX, this.textBlue.getY());
-            drawLabel(graphics, "screen.snipaste_mc_mod.text_bg_color", this.backgroundLabelX, this.backgroundRed.getY());
-            drawPlain(graphics, channelName(0), this.backgroundRedX, this.backgroundRed.getY());
-            drawPlain(graphics, channelName(1), this.backgroundGreenX, this.backgroundGreen.getY());
-            drawPlain(graphics, channelName(2), this.backgroundBlueX, this.backgroundBlue.getY());
+            drawLabel(graphics, "screen.snipaste_mc_mod.text_size", this.sizeLabelX, this.sizeBox.getY());
         }
         super.render(graphics, mouseX, mouseY, partialTick);
+        paintSwatch(graphics, this.textSwatch, SnipasteConfig.textRgb(), SnipasteConfig.textAlpha());
+        paintSwatch(graphics, this.backgroundSwatch, SnipasteConfig.textBackgroundRgb(), SnipasteConfig.textBackgroundAlpha());
+        if (this.sizeBox != null && over(mouseX, mouseY, this.sizeLabelX, this.sizeBox.getY(), this.sizeTipW))
+        {
+            graphics.renderTooltip(this.font, Component.translatable("screen.snipaste_mc_mod.text_size_tip"), mouseX, mouseY);
+        }
     }
 
     private void commitAll()
     {
-        sync(this.textRed, false, 0, true);
-        sync(this.textGreen, false, 1, true);
-        sync(this.textBlue, false, 2, true);
-        sync(this.backgroundRed, true, 0, true);
-        sync(this.backgroundGreen, true, 1, true);
-        sync(this.backgroundBlue, true, 2, true);
+        syncSize(true);
     }
 
-    private void sync(EditBox box, boolean background, int channel, boolean force)
+    private void openColor(boolean background)
     {
-        if (box == null)
+        commitAll();
+        int rgb = background ? SnipasteConfig.textBackgroundRgb() : SnipasteConfig.textRgb();
+        int alpha = background ? SnipasteConfig.textBackgroundAlpha() : SnipasteConfig.textAlpha();
+        Component title = Component.translatable(background ? "screen.snipaste_mc_mod.text_bg_color" : "screen.snipaste_mc_mod.text_color");
+        this.minecraft.setScreen(new SnipasteColorScreen(this, title, rgb, alpha, (red, green, blue, nextAlpha) -> {
+            SnipasteConfig.setTextChannel(background, 0, red);
+            SnipasteConfig.setTextChannel(background, 1, green);
+            SnipasteConfig.setTextChannel(background, 2, blue);
+            SnipasteConfig.setTextChannel(background, 3, nextAlpha);
+        }));
+    }
+
+    private Button colorSwatch(int x, int y, boolean background)
+    {
+        return addRenderableWidget(Button.builder(Component.empty(), button -> openColor(background))
+                .bounds(x, y, 36, 20)
+                .build());
+    }
+
+    private static void paintSwatch(GuiGraphics graphics, Button button, int rgb, int alpha)
+    {
+        if (button == null)
         {
             return;
         }
-        box.tick();
-        if (box.isFocused() && !force)
+        SnipasteColorScreen.paintSwatch(graphics, button.getX() + 2, button.getY() + 2, button.getWidth() - 4, button.getHeight() - 4, rgb, alpha);
+    }
+
+    private void syncSize(boolean force)
+    {
+        if (this.sizeBox == null)
         {
-            Double value = NumberBoxes.parse(box.getValue());
-            if (value != null && value >= 0.0D && value <= 255.0D)
+            return;
+        }
+        this.sizeBox.tick();
+        if (this.sizeBox.isFocused() && !force)
+        {
+            Double value = NumberBoxes.parse(this.sizeBox.getValue());
+            if (value != null && value >= 0.0D && value <= 128.0D)
             {
-                SnipasteConfig.setTextChannel(background, channel, (int) Math.round(value));
+                SnipasteConfig.setTextSize((int) Math.round(value));
             }
             return;
         }
-        Double value = NumberBoxes.parse(box.getValue());
+        Double value = NumberBoxes.parse(this.sizeBox.getValue());
         if (value != null)
         {
-            SnipasteConfig.setTextChannel(background, channel, (int) Math.round(value));
+            SnipasteConfig.setTextSize((int) Math.round(value));
         }
-        NumberBoxes.show(box, String.valueOf(SnipasteConfig.textChannel(background, channel)));
-    }
-
-    private EditBox channelBox(int x, int y, int width, boolean background, int channel)
-    {
-        EditBox box = new EditBox(this.font, x, y, width, 20, Component.empty());
-        box.setMaxLength(3);
-        box.setValue(String.valueOf(SnipasteConfig.textChannel(background, channel)));
-        box.setFilter(NumberBoxes::acceptsInteger);
-        return addRenderableWidget(box);
+        NumberBoxes.show(this.sizeBox, String.valueOf(SnipasteConfig.textSize()));
     }
 
     private void drawLabel(GuiGraphics graphics, String key, int x, int y)
@@ -158,19 +158,8 @@ public class SnipasteTextScreen extends Screen
         graphics.drawString(this.font, Component.translatable(key), x, y + 6, 0xFFFFFF, false);
     }
 
-    private void drawPlain(GuiGraphics graphics, String text, int x, int y)
+    private static boolean over(int mouseX, int mouseY, int x, int y, int width)
     {
-        graphics.drawString(this.font, text, x, y + 6, 0xFFFFFF, false);
-    }
-
-    private static String channelName(int channel)
-    {
-        String key = switch (channel)
-        {
-            case 0 -> "screen.snipaste_mc_mod.channel_red";
-            case 1 -> "screen.snipaste_mc_mod.channel_green";
-            default -> "screen.snipaste_mc_mod.channel_blue";
-        };
-        return Component.translatable(key).getString();
+        return mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + 20;
     }
 }

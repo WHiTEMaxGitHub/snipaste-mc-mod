@@ -134,10 +134,6 @@ public class StickyEditScreen extends Screen
         int index = StickyBoard.get().topmostAt(mouseX, mouseY);
         if (index >= 0)
         {
-            if (index == this.selected && closeSelected(mouseX, mouseY))
-            {
-                return true;
-            }
             this.selected = StickyBoard.get().bringToFront(index);
             StickyImage image = StickyBoard.get().get(this.selected);
             this.drag = image == null ? Edge.BODY : edgeAt(image, mouseX, mouseY);
@@ -148,10 +144,6 @@ public class StickyEditScreen extends Screen
             remember(image);
             this.grabX = mouseX;
             this.grabY = mouseY;
-            return true;
-        }
-        if (closeSelected(mouseX, mouseY))
-        {
             return true;
         }
         StickyImage selectedImage = StickyBoard.get().get(this.selected);
@@ -313,17 +305,6 @@ public class StickyEditScreen extends Screen
         this.drag = Edge.NONE;
     }
 
-    private boolean closeSelected(double mouseX, double mouseY)
-    {
-        StickyImage image = StickyBoard.get().get(this.selected);
-        if (image == null || !StickyRenderer.overClose(image, mouseX, mouseY))
-        {
-            return false;
-        }
-        deleteSelected();
-        return true;
-    }
-
     private static boolean isCorner(Edge edge)
     {
         return edge == Edge.NE || edge == Edge.NW || edge == Edge.SE || edge == Edge.SW;
@@ -465,14 +446,16 @@ public class StickyEditScreen extends Screen
             }
         }
 
-        if (width < MIN_SIZE || height < MIN_SIZE)
-        {
-            return;
-        }
         if (this.drag == Edge.BODY)
         {
             x = Mth.clamp(x, 16 - width, this.width - 16);
             y = Mth.clamp(y, 16 - height, this.height - 16);
+            image.move(x, y);
+            return;
+        }
+        if (width < Math.min(MIN_SIZE, this.originWidth) || height < Math.min(MIN_SIZE, this.originHeight))
+        {
+            return;
         }
         image.place(x, y, width, height);
     }
@@ -480,6 +463,10 @@ public class StickyEditScreen extends Screen
     private Edge edgeAt(StickyImage image, double mouseX, double mouseY)
     {
         int margin = HANDLE_MARGIN;
+        if (image.contains(mouseX, mouseY) && (image.width() < margin * 2 + 8 || image.height() < margin * 2 + 8))
+        {
+            return Edge.BODY;
+        }
         boolean nearLeft = Math.abs(mouseX - image.x()) <= margin;
         boolean nearRight = Math.abs(mouseX - (image.x() + image.width())) <= margin;
         boolean nearTop = Math.abs(mouseY - image.y()) <= margin;
@@ -533,17 +520,11 @@ public class StickyEditScreen extends Screen
             GLFW.glfwSetCursor(window, 0L);
             return;
         }
-        StickyImage selectedImage = StickyBoard.get().get(this.selected);
-        if (this.drag == Edge.NONE && selectedImage != null && StickyRenderer.overClose(selectedImage, mouseX, mouseY))
-        {
-            GLFW.glfwSetCursor(window, 0L);
-            return;
-        }
         Edge edge = this.drag;
         if (edge == Edge.NONE)
         {
             int top = StickyBoard.get().topmostAt(mouseX, mouseY);
-            StickyImage image = top >= 0 ? StickyBoard.get().get(top) : selectedImage;
+            StickyImage image = top >= 0 ? StickyBoard.get().get(top) : StickyBoard.get().get(this.selected);
             edge = image == null ? Edge.NONE : edgeAt(image, mouseX, mouseY);
             if (top < 0 && (edge == Edge.NONE || edge == Edge.BODY))
             {

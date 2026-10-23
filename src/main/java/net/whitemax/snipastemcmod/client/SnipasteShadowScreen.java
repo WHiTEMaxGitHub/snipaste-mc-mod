@@ -15,6 +15,7 @@ public class SnipasteShadowScreen extends Screen
 {
     private static final int ROW = 24;
     private final Screen parent;
+    private Button colorSwatch;
 
     public SnipasteShadowScreen(Screen parent)
     {
@@ -43,12 +44,12 @@ public class SnipasteShadowScreen extends Screen
         addRenderableWidget(new IntSlider(right, y, 150, 20, 0, 32, SnipasteConfig.shadowSpread(),
                 "screen.snipaste_mc_mod.shadow_spread", SnipasteConfig::setShadowSpread));
         y += ROW;
-        addRenderableWidget(new IntSlider(left, y, 100, 20, 0, 255, SnipasteConfig.shadowRed(),
-                "screen.snipaste_mc_mod.shadow_red", value -> SnipasteConfig.setShadowChannel(0, value)));
-        addRenderableWidget(new IntSlider(left + 105, y, 100, 20, 0, 255, SnipasteConfig.shadowGreen(),
-                "screen.snipaste_mc_mod.shadow_green", value -> SnipasteConfig.setShadowChannel(1, value)));
-        addRenderableWidget(new IntSlider(left + 210, y, 100, 20, 0, 255, SnipasteConfig.shadowBlue(),
-                "screen.snipaste_mc_mod.shadow_blue", value -> SnipasteConfig.setShadowChannel(2, value)));
+        addRenderableWidget(Button.builder(Component.translatable("screen.snipaste_mc_mod.shadow_color"), button -> openColor())
+                .bounds(left, y, 150, 20)
+                .build());
+        this.colorSwatch = addRenderableWidget(Button.builder(Component.empty(), button -> openColor())
+                .bounds(left + 156, y, 36, 20)
+                .build());
         addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> onClose())
                 .bounds(this.width / 2 - 100, this.height - 27, 200, 20)
                 .build());
@@ -73,6 +74,21 @@ public class SnipasteShadowScreen extends Screen
         graphics.drawCenteredString(this.font, this.title, this.width / 2, 15, 0xFFFFFF);
         graphics.drawCenteredString(this.font, Component.translatable("screen.snipaste_mc_mod.shadow_hint"), this.width / 2, 32, 0xA0A0A0);
         super.render(graphics, mouseX, mouseY, partialTick);
+        if (this.colorSwatch != null)
+        {
+            SnipasteColorScreen.paintSwatch(graphics, this.colorSwatch.getX() + 2, this.colorSwatch.getY() + 2, this.colorSwatch.getWidth() - 4, this.colorSwatch.getHeight() - 4, SnipasteConfig.shadowRgb(), SnipasteConfig.shadowAlpha());
+        }
+    }
+
+    private void openColor()
+    {
+        this.minecraft.setScreen(new SnipasteColorScreen(this, Component.translatable("screen.snipaste_mc_mod.shadow_color"), SnipasteConfig.shadowRgb(), SnipasteConfig.shadowAlpha(),
+                (red, green, blue, alpha) -> {
+                    SnipasteConfig.setShadowChannel(0, red);
+                    SnipasteConfig.setShadowChannel(1, green);
+                    SnipasteConfig.setShadowChannel(2, blue);
+                    SnipasteConfig.setShadowChannel(3, alpha);
+                }));
     }
 
     private static final class PercentSlider extends AbstractSliderButton

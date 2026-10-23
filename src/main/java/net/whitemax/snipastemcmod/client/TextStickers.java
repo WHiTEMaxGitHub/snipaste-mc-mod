@@ -1,25 +1,18 @@
 package net.whitemax.snipastemcmod.client;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import org.lwjgl.glfw.GLFW;
 
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.FontMetrics;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
 
 final class TextStickers
 {
-    private static final int SIZE = 20;
-    private static final int MAX_WIDTH = 420;
+    private static final int MAX_WIDTH = 240;
     private static final int MAX_LINES = 24;
     private static final int MAX_CHARS = 2000;
-    private static final int PADDING = 10;
-    private static Font font;
+    static final int PADDING = 4;
 
     private TextStickers()
     {
@@ -37,45 +30,36 @@ final class TextStickers
         return cleaned.isBlank() ? null : cleaned;
     }
 
-    static BufferedImage draw(String text)
+    static Layout layout(String text)
     {
-        Font chosen = font();
-        BufferedImage measure = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D metricsGraphics = measure.createGraphics();
-        metricsGraphics.setFont(chosen);
-        FontMetrics metrics = metricsGraphics.getFontMetrics();
-        List<String> lines = wrap(text, metrics);
-        metricsGraphics.dispose();
+        Font font = Minecraft.getInstance().font;
+        List<String> lines = wrap(text, font);
         if (lines.isEmpty())
         {
             return null;
         }
-        int lineHeight = metrics.getHeight();
         int contentWidth = 1;
         for (String line : lines)
         {
-            contentWidth = Math.max(contentWidth, metrics.stringWidth(line));
+            contentWidth = Math.max(contentWidth, font.width(line));
         }
         int width = contentWidth + PADDING * 2;
-        int height = lines.size() * lineHeight + PADDING * 2;
-        BufferedImage image = new BufferedImage(Math.max(1, width), Math.max(1, height), BufferedImage.TYPE_INT_ARGB);
-        Graphics2D graphics = image.createGraphics();
-        graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        if (SnipasteConfig.textBackground())
+        int height = lines.size() * font.lineHeight + PADDING * 2;
+        return new Layout(lines, Math.max(1, width), Math.max(1, height));
+    }
+
+    static float scale()
+    {
+        int size = SnipasteConfig.textSize();
+        if (size <= 0)
         {
-            graphics.setColor(new Color(SnipasteConfig.textBackgroundRed(), SnipasteConfig.textBackgroundGreen(), SnipasteConfig.textBackgroundBlue(), 210));
-            graphics.fillRect(0, 0, image.getWidth(), image.getHeight());
+            return 1.0F;
         }
-        graphics.setFont(chosen);
-        graphics.setColor(new Color(SnipasteConfig.textRed(), SnipasteConfig.textGreen(), SnipasteConfig.textBlue(), 255));
-        int baseline = PADDING + metrics.getAscent();
-        for (String line : lines)
-        {
-            graphics.drawString(line, PADDING, baseline);
-            baseline += lineHeight;
-        }
-        graphics.dispose();
-        return image;
+        return size / (float) Math.max(1, Minecraft.getInstance().font.lineHeight);
+    }
+
+    record Layout(List<String> lines, int width, int height)
+    {
     }
 
     private static String clean(String raw)
@@ -104,7 +88,7 @@ final class TextStickers
         return builder.toString();
     }
 
-    private static List<String> wrap(String text, FontMetrics metrics)
+    private static List<String> wrap(String text, Font font)
     {
         List<String> lines = new ArrayList<>();
         boolean truncated = false;
@@ -126,7 +110,7 @@ final class TextStickers
             {
                 int point = paragraph.codePointAt(index);
                 String character = new String(Character.toChars(point));
-                int characterWidth = metrics.stringWidth(character);
+                int characterWidth = Math.max(1, font.width(character));
                 if (width + characterWidth > MAX_WIDTH && !line.isEmpty())
                 {
                     if (!addLine(lines, line.toString()))
@@ -166,25 +150,5 @@ final class TextStickers
         }
         lines.add(line);
         return true;
-    }
-
-    private static Font font()
-    {
-        if (font != null)
-        {
-            return font;
-        }
-        String[] names = {"Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", "WenQuanYi Micro Hei", "SimHei"};
-        for (String name : names)
-        {
-            Font candidate = new Font(name, Font.PLAIN, SIZE);
-            if (candidate.getFamily().equalsIgnoreCase(name) && candidate.canDisplay('中') && candidate.canDisplay('A'))
-            {
-                font = candidate;
-                return font;
-            }
-        }
-        font = new Font(Font.SANS_SERIF, Font.PLAIN, SIZE);
-        return font;
     }
 }

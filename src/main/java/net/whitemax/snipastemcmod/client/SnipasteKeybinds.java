@@ -32,7 +32,7 @@ public final class SnipasteKeybinds
     public static final Binding SNIP_CHORD = new Binding(SNIP, Component.translatable(SNIP.getName()), SnipasteConfig.SNIP_KEY, SnipasteConfig.SNIP_MODIFIERS, "key.keyboard.f6", 0);
     public static final Binding PASTE_CHORD = new Binding(PASTE, Component.translatable(PASTE.getName()), SnipasteConfig.PASTE_KEY, SnipasteConfig.PASTE_MODIFIERS, "key.keyboard.f7", 0);
     public static final Binding EDIT_CHORD = new Binding(EDIT, Component.translatable(EDIT.getName()), SnipasteConfig.EDIT_KEY, SnipasteConfig.EDIT_MODIFIERS, "key.keyboard.f8", 0);
-    public static final Binding HIDE_CHORD = new Binding(null, Component.translatable("screen.snipaste_mc_mod.clear_key"), SnipasteConfig.HIDE_KEY, SnipasteConfig.HIDE_MODIFIERS, SnipasteConfig.DEFAULT_HIDE_KEY, 0);
+    public static final Binding HIDE_CHORD = new Binding(null, Component.translatable("screen.snipaste_mc_mod.clear_key"), SnipasteConfig.HIDE_KEY, SnipasteConfig.HIDE_MODIFIERS, SnipasteConfig.DEFAULT_HIDE_KEY, GLFW.GLFW_MOD_SHIFT);
     public static final Binding CLIP_CHORD = new Binding(null, Component.translatable("screen.snipaste_mc_mod.clip_key"), SnipasteConfig.CLIP_KEY, SnipasteConfig.CLIP_MODIFIERS, SnipasteConfig.DEFAULT_CLIP_KEY, GLFW.GLFW_MOD_SHIFT);
     public static final Binding[] CHORDS = {SNIP_CHORD, PASTE_CHORD, CLIP_CHORD, EDIT_CHORD, HIDE_CHORD};
 

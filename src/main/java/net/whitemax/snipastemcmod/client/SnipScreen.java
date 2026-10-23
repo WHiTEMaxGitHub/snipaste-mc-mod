@@ -24,11 +24,11 @@ public class SnipScreen extends Screen
     private double currentX;
     private double currentY;
     private Component error;
+    private static final double TEXT_BOX_WIDTH_RATIO = 0.5D;
+    private static final double TEXT_BOX_HEIGHT_RATIO = 1.0D / 3.0D;
     private boolean typing;
     private String text = "";
     private int cursor;
-    private int boxX;
-    private int boxY;
 
     public SnipScreen(NativeImage image)
     {
@@ -131,6 +131,10 @@ public class SnipScreen extends Screen
     {
         if (this.typing)
         {
+            if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT)
+            {
+                this.typing = false;
+            }
             return true;
         }
         if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT)
@@ -213,13 +217,6 @@ public class SnipScreen extends Screen
         this.cursor = 0;
         this.dragging = false;
         this.error = null;
-        long window = this.minecraft.getWindow().getWindow();
-        double[] x = new double[1];
-        double[] y = new double[1];
-        GLFW.glfwGetCursorPos(window, x, y);
-        double scale = this.minecraft.getWindow().getGuiScale();
-        this.boxX = Mth.clamp((int) Math.round(x[0] / scale), 8, Math.max(8, this.width - 80));
-        this.boxY = Mth.clamp((int) Math.round(y[1] / scale), 8, Math.max(8, this.height - 24));
     }
 
     private boolean typeKey(int keyCode, int modifiers)
@@ -406,44 +403,73 @@ public class SnipScreen extends Screen
 
     private void renderTextBox(GuiGraphics graphics)
     {
-        String[] lines = this.text.split("\n", -1);
         int lineHeight = this.font.lineHeight;
-        int contentWidth = 40;
-        for (String line : lines)
-        {
-            contentWidth = Math.max(contentWidth, this.font.width(line));
-        }
-        int boxWidth = Math.min(this.width - 8, contentWidth + 12);
-        int boxHeight = lines.length * lineHeight + 8;
-        int x = Mth.clamp(this.boxX, 4, Math.max(4, this.width - boxWidth - 4));
-        int y = Mth.clamp(this.boxY, 4, Math.max(4, this.height - boxHeight - 4));
-        if (SnipasteConfig.textBackground())
-        {
-            graphics.fill(x, y, x + boxWidth, y + boxHeight, 0xD2000000 | SnipasteConfig.textBackgroundRgb());
-        }
+        int margin = 24;
+        int boxWidth = Math.min(Math.max(1, this.width - margin), Math.max(1, (int) Math.round(this.width * TEXT_BOX_WIDTH_RATIO)));
+        int boxHeight = Math.min(Math.max(lineHeight + 8, this.height - margin), Math.max(lineHeight + 8, (int) Math.round(this.height * TEXT_BOX_HEIGHT_RATIO)));
+        int visibleLines = Math.max(1, (boxHeight - 8) / lineHeight);
+        boxHeight = visibleLines * lineHeight + 8;
+        int x = (this.width - boxWidth) / 2;
+        int y = (this.height - boxHeight) / 2;
+        int fill = SnipasteConfig.textBackground() ? (SnipasteConfig.textBackgroundAlpha() << 24) | SnipasteConfig.textBackgroundRgb() : 0xC0000000;
+        graphics.fill(x, y, x + boxWidth, y + boxHeight, fill);
         graphics.fill(x, y, x + boxWidth, y + 1, 0xFFFFFFFF);
         graphics.fill(x, y + boxHeight - 1, x + boxWidth, y + boxHeight, 0xFFFFFFFF);
         graphics.fill(x, y, x + 1, y + boxHeight, 0xFFFFFFFF);
         graphics.fill(x + boxWidth - 1, y, x + boxWidth, y + boxHeight, 0xFFFFFFFF);
-        int color = 0xFF000000 | SnipasteConfig.textRgb();
-        int lineY = y + 4;
-        int remaining = this.cursor;
-        for (String line : lines)
+        String[] lines = this.text.split("\n", -1);
+        int cursorLine = 0;
+        int cursorColumn = this.cursor;
+        for (int index = 0; index < lines.length; index++)
         {
-            graphics.drawString(this.font, line, x + 6, lineY, color, false);
-            if (remaining >= 0 && remaining <= line.length() && (Util.getMillis() / 500L) % 2L == 0L)
+            if (cursorColumn <= lines[index].length())
             {
-                int caret = x + 6 + this.font.width(line.substring(0, remaining));
-                graphics.fill(caret, lineY - 1, caret + 1, lineY + lineHeight - 1, color);
-                remaining = -1;
+                cursorLine = index;
+                break;
+            }
+            cursorColumn -= lines[index].length() + 1;
+            cursorLine = index;
+        }
+        int firstLine = lines.length > visibleLines ? Mth.clamp(cursorLine - visibleLines + 1, 0, lines.length - visibleLines) : 0;
+        int color = (SnipasteConfig.textAlpha() << 24) | SnipasteConfig.textRgb();
+        int innerWidth = boxWidth - 12;
+        graphics.enableScissor(x + 1, y + 1, x + boxWidth - 1, y + boxHeight - 1);
+        int lineY = y + 4;
+        for (int index = firstLine; index < lines.length && index < firstLine + visibleLines; index++)
+        {
+            String line = lines[index];
+            int drawX = x + 6;
+            if (index == cursorLine)
+            {
+                int caretOffset = this.font.width(line.substring(0, Math.min(cursorColumn, line.length())));
+                if (caretOffset > innerWidth - 2)
+                {
+                    drawX -= caretOffset - (innerWidth - 2);
+                }
+                graphics.drawString(this.font, line, drawX, lineY, color, false);
+                if ((Util.getMillis() / 500L) % 2L == 0L)
+                {
+                    int caret = drawX + caretOffset;
+                    graphics.fill(caret, lineY - 1, caret + 1, lineY + lineHeight - 1, color);
+                }
             }
             else
             {
-                remaining -= line.length() + 1;
+                graphics.drawString(this.font, line, drawX, lineY, color, false);
             }
             lineY += lineHeight;
         }
-        graphics.drawCenteredString(this.font, Component.translatable("screen.snipaste_mc_mod.hint_text"), this.width / 2, this.height - 16, 0xFFFFFFFF);
+        graphics.disableScissor();
+        Component hint = Component.translatable("screen.snipaste_mc_mod.hint_text");
+        int hintWidth = this.font.width(hint);
+        int hintX = (this.width - hintWidth) / 2;
+        int hintY = y + boxHeight + 6;
+        if (hintY + this.font.lineHeight > this.height - 28)
+        {
+            hintY = y - this.font.lineHeight - 6;
+        }
+        graphics.fill(hintX - 4, hintY - 2, hintX + hintWidth + 4, hintY + this.font.lineHeight + 1, 0x88000000);
+        graphics.drawString(this.font, hint, hintX, hintY, 0xFFFFFFFF, false);
     }
 
     private void confirm()

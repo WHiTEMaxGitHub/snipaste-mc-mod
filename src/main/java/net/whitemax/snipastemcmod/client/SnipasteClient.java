@@ -276,6 +276,7 @@ public final class SnipasteClient
                 || screen instanceof SnipasteShadowScreen
                 || screen instanceof SnipasteBorderScreen
                 || screen instanceof SnipasteTextScreen
+                || screen instanceof SnipasteColorScreen
                 || screen instanceof DeleteImageScreen
                 || screen instanceof RenameImageScreen
                 || screen instanceof ImagePickScreen

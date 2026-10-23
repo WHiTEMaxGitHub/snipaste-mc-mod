@@ -115,13 +115,13 @@ public final class StickyBoard
                     SnipasteClient.tell(Component.translatable("message.snipaste_mc_mod.no_text"));
                     return false;
                 }
-                BufferedImage drawn = TextStickers.draw(text);
-                if (drawn == null)
+                TextStickers.Layout layout = TextStickers.layout(text);
+                if (layout == null)
                 {
                     SnipasteClient.tell(Component.translatable("message.snipaste_mc_mod.text_failed"));
                     return false;
                 }
-                return place(drawn, false);
+                return placeText(layout);
             }
             BufferedImage buffered = ImageFolder.read(path);
             return place(buffered, true);
@@ -189,6 +189,41 @@ public final class StickyBoard
         return true;
     }
 
+    private boolean placeText(TextStickers.Layout layout)
+    {
+        Minecraft minecraft = Minecraft.getInstance();
+        int guiWidth = minecraft.getWindow().getGuiScaledWidth();
+        int guiHeight = minecraft.getWindow().getGuiScaledHeight();
+        float scale = TextStickers.scale();
+        int displayWidth = Math.max(1, Math.round(layout.width() * scale));
+        int displayHeight = Math.max(1, Math.round(layout.height() * scale));
+        int maxWidth = Math.max(MIN_SIZE, guiWidth - 16);
+        int maxHeight = Math.max(MIN_SIZE, guiHeight - 16);
+        if (displayWidth > maxWidth || displayHeight > maxHeight)
+        {
+            float fit = Math.min(maxWidth / (float) displayWidth, maxHeight / (float) displayHeight);
+            displayWidth = Math.max(1, Math.round(displayWidth * fit));
+            displayHeight = Math.max(1, Math.round(displayHeight * fit));
+        }
+        int cascade = (images.size() % 6) * 12;
+        int x = guiWidth - displayWidth - 8 - cascade;
+        int y = 8 + cascade;
+        x = Mth.clamp(x, 0, Math.max(0, guiWidth - displayWidth));
+        y = Mth.clamp(y, 0, Math.max(0, guiHeight - displayHeight));
+        images.add(new StickyImage(
+                layout.lines(),
+                TextStickers.PADDING,
+                layout.width(),
+                layout.height(),
+                x,
+                y,
+                displayWidth,
+                displayHeight,
+                SnipasteConfig.defaultOpacity()));
+        shown = true;
+        return true;
+    }
+
     public void remove(int index)
     {
         if (index < 0 || index >= images.size())
@@ -196,8 +231,11 @@ public final class StickyBoard
             return;
         }
         StickyImage removed = images.remove(index);
-        removed.texture().close();
-        Minecraft.getInstance().getTextureManager().release(removed.location());
+        if (removed.texture() != null)
+        {
+            removed.texture().close();
+            Minecraft.getInstance().getTextureManager().release(removed.location());
+        }
     }
 
     public int bringToFront(int index)
